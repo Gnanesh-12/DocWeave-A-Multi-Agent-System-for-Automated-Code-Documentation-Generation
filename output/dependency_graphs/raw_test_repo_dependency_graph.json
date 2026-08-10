@@ -1,0 +1,247 @@
+{
+  "helper.HelperClass": {
+    "id": "helper.HelperClass",
+    "component_type": "class",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [
+      "helper.HelperClass.get_result",
+      "helper.DataProcessor",
+      "helper.HelperClass._internal_process",
+      "helper.HelperClass.process_data"
+    ],
+    "start_line": 1,
+    "end_line": 14,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "helper.HelperClass.__init__": {
+    "id": "helper.HelperClass.__init__",
+    "component_type": "method",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [],
+    "start_line": 3,
+    "end_line": 4,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "helper.HelperClass.process_data": {
+    "id": "helper.HelperClass.process_data",
+    "component_type": "method",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [
+      "helper.DataProcessor"
+    ],
+    "start_line": 6,
+    "end_line": 8,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "helper.HelperClass._internal_process": {
+    "id": "helper.HelperClass._internal_process",
+    "component_type": "method",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [],
+    "start_line": 10,
+    "end_line": 11,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "helper.HelperClass.get_result": {
+    "id": "helper.HelperClass.get_result",
+    "component_type": "method",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [],
+    "start_line": 13,
+    "end_line": 14,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "helper.DataProcessor": {
+    "id": "helper.DataProcessor",
+    "component_type": "class",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [
+      "helper.DataProcessor.process",
+      "helper.DataProcessor._internal_process"
+    ],
+    "start_line": 16,
+    "end_line": 72,
+    "has_docstring": true,
+    "docstring": "\n    \"\"\"Handles basic data processing tasks within a system.\n\n        This class is designed to perform simple data processing operations, providing\n        utility methods that can be used in various scenarios where basic data manipulation\n        is required. It is particularly useful in contexts where a straightforward list of\n        integers is needed for further processing or testing.\n\n        The `DataProcessor` class fits into the larger system architecture as a utility\n        component, offering static and internal methods to handle specific processing tasks.\n        It achieves its purpose by providing a static method for general use and an internal\n        method for class-specific operations.\n\n        Example:\n            # Initialize the DataProcessor class\n            processor = DataProcessor()\n\n            # Use the static method to process data\n            result = DataProcessor.process()\n            print(result)  # Output: [1, 2, 3]\n\n            # Use the internal method for internal processing\n            internal_result = processor._internal_process()\n            print(internal_result)  # Output: 'processed'\n    \"\"\"\n    "
+  },
+  "helper.DataProcessor.process": {
+    "id": "helper.DataProcessor.process",
+    "component_type": "method",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [],
+    "start_line": 45,
+    "end_line": 57,
+    "has_docstring": true,
+    "docstring": "\n        \"\"\"Processes data and returns a list of integers.\n\n            This static method is designed to perform a basic data processing task\n            and return a predefined list of integers. It can be used whenever a simple\n            list of integers is required for further operations or testing purposes.\n\n            Returns:\n                list of int: A list containing the integers [1, 2, 3].\n        \"\"\"\n        "
+  },
+  "helper.DataProcessor._internal_process": {
+    "id": "helper.DataProcessor._internal_process",
+    "component_type": "method",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "relative_path": "helper.py",
+    "depends_on": [],
+    "start_line": 59,
+    "end_line": 72,
+    "has_docstring": true,
+    "docstring": "\n        \"\"\"Processes internal data and returns a status message.\n\n            This method is used internally within the `DataProcessor` class to perform\n            specific data processing tasks that are not exposed publicly. It is typically\n            called by other methods within the class to handle intermediate processing\n            steps.\n\n            Returns:\n                str: A string indicating the processing status, specifically 'processed'.\n            \"\"\"\n        "
+  },
+  "main.main_function": {
+    "id": "main.main_function",
+    "component_type": "function",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/main.py",
+    "relative_path": "main.py",
+    "depends_on": [
+      "helper.HelperClass",
+      "inner.inner_functions.generate_timestamp",
+      "main.utility_function"
+    ],
+    "start_line": 5,
+    "end_line": 10,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "main.utility_function": {
+    "id": "main.utility_function",
+    "component_type": "function",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/main.py",
+    "relative_path": "main.py",
+    "depends_on": [],
+    "start_line": 13,
+    "end_line": 14,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "processor.AdvancedProcessor": {
+    "id": "processor.AdvancedProcessor",
+    "component_type": "class",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/processor.py",
+    "relative_path": "processor.py",
+    "depends_on": [
+      "processor.AdvancedProcessor.run",
+      "helper.HelperClass",
+      "processor.AdvancedProcessor.process_result",
+      "main.utility_function",
+      "processor.DataProcessor"
+    ],
+    "start_line": 6,
+    "end_line": 18,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "processor.AdvancedProcessor.__init__": {
+    "id": "processor.AdvancedProcessor.__init__",
+    "component_type": "method",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/processor.py",
+    "relative_path": "processor.py",
+    "depends_on": [
+      "helper.HelperClass",
+      "processor.DataProcessor"
+    ],
+    "start_line": 8,
+    "end_line": 10,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "processor.AdvancedProcessor.run": {
+    "id": "processor.AdvancedProcessor.run",
+    "component_type": "method",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/processor.py",
+    "relative_path": "processor.py",
+    "depends_on": [],
+    "start_line": 12,
+    "end_line": 15,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "processor.AdvancedProcessor.process_result": {
+    "id": "processor.AdvancedProcessor.process_result",
+    "component_type": "method",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/processor.py",
+    "relative_path": "processor.py",
+    "depends_on": [
+      "main.utility_function"
+    ],
+    "start_line": 17,
+    "end_line": 18,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "test_file.test_function": {
+    "id": "test_file.test_function",
+    "component_type": "function",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/test_file.py",
+    "relative_path": "test_file.py",
+    "depends_on": [],
+    "start_line": 1,
+    "end_line": 2,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "inner.inner_functions.inner_function": {
+    "id": "inner.inner_functions.inner_function",
+    "component_type": "function",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/inner/inner_functions.py",
+    "relative_path": "inner/inner_functions.py",
+    "depends_on": [],
+    "start_line": 1,
+    "end_line": 15,
+    "has_docstring": true,
+    "docstring": "\n    Returns a greeting message from an inner function.\n\n    This function is designed to return a simple greeting message, which can be used in nested or internal function calls to verify execution flow or for debugging purposes. It is typically used in development environments where confirming the execution of specific code paths is necessary.\n\n    Returns:\n        str: A greeting message stating 'Hello from inner function!'\n\n    Example:\n        >>> message = inner_function()\n        >>> print(message)\n        'Hello from inner function!'\n    "
+  },
+  "inner.inner_functions.get_random_quote": {
+    "id": "inner.inner_functions.get_random_quote",
+    "component_type": "function",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/inner/inner_functions.py",
+    "relative_path": "inner/inner_functions.py",
+    "depends_on": [],
+    "start_line": 17,
+    "end_line": 31,
+    "has_docstring": true,
+    "docstring": "\n    Fetches a predefined inspirational quote.\n\n    This function is designed to provide users with a motivational quote, which can be used in applications that aim to inspire or uplift users. It is particularly useful in scenarios where a quick, positive message is needed to enhance user experience.\n\n    Returns:\n        str: A quote string stating 'The best way to predict the future is to create it.'\n\n    Example:\n        >>> quote = get_random_quote()\n        >>> print(quote)\n        'The best way to predict the future is to create it.'\n    "
+  },
+  "inner.inner_functions.generate_timestamp": {
+    "id": "inner.inner_functions.generate_timestamp",
+    "component_type": "function",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/inner/inner_functions.py",
+    "relative_path": "inner/inner_functions.py",
+    "depends_on": [],
+    "start_line": 33,
+    "end_line": 34,
+    "has_docstring": false,
+    "docstring": ""
+  },
+  "inner.inner_functions.get_system_status": {
+    "id": "inner.inner_functions.get_system_status",
+    "component_type": "function",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/inner/inner_functions.py",
+    "relative_path": "inner/inner_functions.py",
+    "depends_on": [],
+    "start_line": 36,
+    "end_line": 50,
+    "has_docstring": true,
+    "docstring": "\n    Provides a static message indicating the operational status of systems.\n\n    This function is used to retrieve a fixed status message that confirms all systems are functioning correctly. It is useful in monitoring dashboards or status pages where a quick confirmation of system health is required.\n\n    Returns:\n        str: A status message stating 'All systems operational.'\n\n    Example:\n        >>> status = get_system_status()\n        >>> print(status)\n        'All systems operational'\n    "
+  },
+  "inner.inner_functions.fetch_user_message": {
+    "id": "inner.inner_functions.fetch_user_message",
+    "component_type": "function",
+    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/inner/inner_functions.py",
+    "relative_path": "inner/inner_functions.py",
+    "depends_on": [],
+    "start_line": 52,
+    "end_line": 67,
+    "has_docstring": true,
+    "docstring": "\n    \"\"\"Fetches a predefined user message indicating notifications.\n\n        This function is used to retrieve a static message that informs the user about the number of notifications they have. It is typically used in scenarios where a quick status update is needed for user engagement.\n\n        Returns:\n            str: A message string stating 'Welcome back! You have 3 notifications.'\n\n        Example:\n            >>> message = fetch_user_message()\n            >>> print(message)\n            'Welcome back! You have 3 notifications.'\n        \"\"\"\n    "
+  }
+}
