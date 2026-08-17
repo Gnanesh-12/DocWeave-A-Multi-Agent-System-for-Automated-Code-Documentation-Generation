@@ -12,7 +12,7 @@ import yaml
 import threading
 import eventlet
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response
 from flask_socketio import SocketIO
 
 # Patch standard library for async support with eventlet
@@ -21,6 +21,9 @@ eventlet.monkey_patch()
 from . import config_handler
 from . import visualization_handler
 from . import process_handler
+from . import git_handler
+
+WORKSPACE_DIR = Path(__file__).parent.parent.parent / 'workspace'
 
 def create_app(debug=True):
     """
@@ -154,6 +157,108 @@ def create_app(debug=True):
                 'message': f'Missing required dependency: {str(e)}'
             })
     
+    @app.route('/api/clone', methods=['POST'])
+    def clone_repository():
+        """Clone a repository from a URL into the workspace for processing."""
+        if app.config['APP_STATE']['is_running']:
+            return jsonify({'status': 'error', 'message': 'Generation already in progress'})
+
+        data = request.json or {}
+        url = (data.get('url') or '').strip()
+        if not url:
+            return jsonify({'status': 'error', 'message': 'Repository URL is required'})
+
+        try:
+            repo_path = git_handler.clone_repo(url, WORKSPACE_DIR)
+        except ValueError as e:
+            return jsonify({'status': 'error', 'message': str(e)})
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': f'Failed to clone repository: {str(e)}'})
+
+        app.config['APP_STATE']['repo_path'] = str(repo_path)
+
+        return jsonify({'status': 'success', 'repo_path': str(repo_path)})
+
+    @app.route('/api/start_ollama', methods=['POST'])
+    def start_ollama_generation():
+        """Start docstring generation on the cloned repo using a local Ollama model."""
+        if app.config['APP_STATE']['is_running']:
+            return jsonify({'status': 'error', 'message': 'Generation already in progress'})
+
+        data = request.json or {}
+        model = data.get('model')
+        repo_path = app.config['APP_STATE'].get('repo_path')
+
+        if not repo_path or not os.path.exists(repo_path):
+            return jsonify({'status': 'error', 'message': 'No cloned repository to process. Call /api/clone first.'})
+
+        try:
+            config = config_handler.build_ollama_config(model)
+            config_path = config_handler.save_config(config)
+        except ValueError as e:
+            return jsonify({'status': 'error', 'message': str(e)})
+
+        app.config['APP_STATE']['config'] = config
+        app.config['APP_STATE']['is_running'] = True
+
+        def run_and_release():
+            """Run generation, then always release the running lock so the next clone/start isn't blocked."""
+            try:
+                process_handler.start_generation_process(socketio, repo_path, config_path)
+            finally:
+                app.config['APP_STATE']['is_running'] = False
+
+        thread = socketio.start_background_task(run_and_release)
+        app.config['APP_STATE']['process'] = thread
+
+        return jsonify({'status': 'success', 'message': 'Generation started'})
+
+    @app.route('/api/models')
+    def get_ollama_models():
+        """List the local Ollama models supported by the paste-a-link UI."""
+        return jsonify({'models': config_handler.OLLAMA_MODELS})
+
+    @app.route('/api/dependency-graph')
+    def get_dependency_graph_route():
+        """Get the dependency graph (nodes/edges) for the current repository."""
+        repo_path = app.config['APP_STATE'].get('repo_path')
+        if not repo_path:
+            return jsonify({'status': 'error', 'message': 'No repository selected'})
+
+        result = visualization_handler.get_dependency_graph(repo_path)
+        return jsonify(result)
+
+    @app.route('/api/results')
+    def get_results():
+        """Get the diff of docstrings generated for the current repository."""
+        repo_path = app.config['APP_STATE'].get('repo_path')
+        if not repo_path:
+            return jsonify({'status': 'error', 'message': 'No repository selected'})
+
+        try:
+            diffs = git_handler.get_diff(repo_path)
+            return jsonify({'status': 'success', 'files': diffs})
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': f'Failed to compute diff: {str(e)}'})
+
+    @app.route('/api/download-patch')
+    def download_patch():
+        """Download the generated docstring changes as a single .patch file."""
+        repo_path = app.config['APP_STATE'].get('repo_path')
+        if not repo_path:
+            return jsonify({'status': 'error', 'message': 'No repository selected'})
+
+        try:
+            patch_text = git_handler.get_full_diff(repo_path)
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': f'Failed to build patch: {str(e)}'})
+
+        return Response(
+            patch_text,
+            mimetype='text/x-patch',
+            headers={'Content-Disposition': 'attachment; filename=docagent-changes.patch'}
+        )
+
     @app.route('/api/start', methods=['POST'])
     def start_generation():
         """Start the docstring generation process."""

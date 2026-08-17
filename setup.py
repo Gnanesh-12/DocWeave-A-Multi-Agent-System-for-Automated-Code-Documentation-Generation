@@ -71,6 +71,7 @@ setup(
         "astor>=0.8.1",
         "code2flow>=2.5.1",
         "pydeps>=3.0.0",
+        "gitpython>=3.1.0",
         
         # AI/LLM related dependencies
         "anthropic>=0.45.0",

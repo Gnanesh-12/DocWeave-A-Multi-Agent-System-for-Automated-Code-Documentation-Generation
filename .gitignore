@@ -1,1 +1,19 @@
 tool/add_header.sh
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+venv/
+.venv/
+
+# Web UI paste-a-link scratch clones
+workspace/
+
+# Regenerated on every run - never needs to be committed
+output/dependency_graphs/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+.claude/

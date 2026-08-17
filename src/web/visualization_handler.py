@@ -176,6 +176,49 @@ def update_file_status(file_path: str, status: str):
     
     update_status(state.repo_structure['tree'])
 
+def get_dependency_graph(repo_path: str) -> Dict[str, Any]:
+    """
+    Build the dependency graph for a repository and transform it into nodes/edges.
+
+    Re-parses the repository on demand rather than reading the JSON snapshot
+    generate_docstrings.py saves before generation starts - that snapshot's
+    `has_docstring` reflects pre-generation state, so reading it here would
+    show freshly-documented components as still undocumented.
+
+    Args:
+        repo_path: Path to the repository
+
+    Returns:
+        Dictionary with 'nodes' and 'edges' lists, or an error status/message
+    """
+    from src.dependency_analyzer import DependencyParser
+
+    if not os.path.isdir(repo_path):
+        return {'status': 'error', 'message': 'Repository not found. Run generation first.'}
+
+    try:
+        parser = DependencyParser(repo_path)
+        parser.parse_repository()
+        components = {comp_id: comp.to_dict() for comp_id, comp in parser.components.items()}
+    except Exception as e:
+        return {'status': 'error', 'message': f'Failed to parse dependency graph: {str(e)}'}
+
+    nodes = []
+    edges = []
+    for comp_id, comp in components.items():
+        nodes.append({
+            'id': comp_id,
+            'label': comp_id.split('.')[-1],
+            'type': comp.get('component_type', 'unknown'),
+            'file': comp.get('relative_path', ''),
+            'has_docstring': comp.get('has_docstring', False),
+        })
+        for dep_id in comp.get('depends_on', []):
+            edges.append({'source': comp_id, 'target': dep_id})
+
+    return {'status': 'success', 'nodes': nodes, 'edges': edges}
+
+
 def get_completeness_data(repo_path: str) -> Dict[str, Any]:
     """
     Get the completeness evaluation data for the repository.

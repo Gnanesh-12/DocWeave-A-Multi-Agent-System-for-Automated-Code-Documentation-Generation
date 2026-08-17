@@ -166,10 +166,15 @@ class ProgressVisualizer:
     
     def show_dependency_stats(self):
         """Show statistics about the dependency graph."""
+        if not self.components:
+            print(f"\n{Fore.CYAN}Dependency Graph Statistics:{Style.RESET_ALL}")
+            print("Total components: 0 (no Python components found in repository)")
+            return
+
         # Calculate dependency metrics
         total_deps = sum(len(self.components[comp_id].depends_on) for comp_id in self.components)
         max_deps = max((len(self.components[comp_id].depends_on), comp_id) for comp_id in self.components)
-        
+
         avg_deps = total_deps / len(self.components) if self.components else 0
         
         # Count components by type

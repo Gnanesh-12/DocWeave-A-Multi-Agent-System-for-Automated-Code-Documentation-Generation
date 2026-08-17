@@ -15,7 +15,8 @@ class HuggingFaceLLM(BaseLLM):
         api_key: str = "EMPTY",
         device: str = None,  # Kept for backward compatibility
         torch_dtype: torch.dtype = None,  # Kept for backward compatibility
-        max_input_tokens: int = 10000  # Maximum input tokens allowed
+        max_input_tokens: int = 10000,  # Maximum input tokens allowed
+        num_ctx: int = 8192  # Context window to request from the server (e.g. Ollama defaults to a small window otherwise)
     ):
         """Initialize HuggingFace LLM via vLLM API.
         
@@ -33,6 +34,7 @@ class HuggingFaceLLM(BaseLLM):
             base_url=api_base,
         )
         self.max_input_tokens = max_input_tokens
+        self.num_ctx = num_ctx
         # Initialize tokenizer based on model
         try:
             self.tokenizer = tiktoken.encoding_for_model(model_name)
@@ -194,11 +196,14 @@ class HuggingFaceLLM(BaseLLM):
             })
         
         # Call the API
+        # Ollama (and other vLLM-style servers) default to a small context window unless told
+        # otherwise; "options.num_ctx" is Ollama's extension for requesting a larger one.
         response = self.client.chat.completions.create(
             model=self.model_name,
             messages=formatted_messages,
             temperature=temperature,
-            max_tokens=max_output_tokens
+            max_tokens=max_output_tokens,
+            extra_body={"options": {"num_ctx": self.num_ctx}}
         )
         
         # Extract the generated text

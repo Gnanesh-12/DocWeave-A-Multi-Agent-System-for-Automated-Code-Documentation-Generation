@@ -1,0 +1,24 @@
+# Local Ollama config: qwen2.5-coder:7b
+
+llm:
+  type: "huggingface"
+  model: "qwen2.5-coder:7b"
+  api_base: "http://localhost:11434/v1"
+  api_key: "ollama"
+  temperature: 0.1
+  max_output_tokens: 4096
+  max_input_tokens: 8000
+
+flow_control:
+  max_reader_search_attempts: 2
+  max_verifier_rejections: 1
+  status_sleep_time: 0
+
+docstring_options:
+  overwrite_docstrings: false
+
+perplexity:
+  api_key: "your-perplexity-api-key-here"
+  model: "sonar"
+  temperature: 0.1
+  max_output_tokens: 250

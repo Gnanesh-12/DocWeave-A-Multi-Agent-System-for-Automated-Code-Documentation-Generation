@@ -32,6 +32,16 @@ from typing import Dict, List, Set, Optional, Any
 from collections import defaultdict
 import tiktoken  # Add this import for token counting
 
+# Force UTF-8 stdout/stderr. The visualizer prints box-drawing characters for
+# status output; on Windows, stdout falls back to the legacy cp1252 codepage
+# whenever it's piped/redirected (e.g. by the web UI's subprocess.Popen, or
+# any `| tee`/log-capture), which raises UnicodeEncodeError on those
+# characters. That error was getting silently swallowed by the per-component
+# exception handler below, discarding real generated docstrings.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -415,7 +425,20 @@ def main():
     test_mode = args.test_mode
     order_mode = args.order_mode
     overwrite_docstrings = args.overwrite_docstrings
-    
+
+    # Patch the visualizer classes for web interface support BEFORE any
+    # visualizer instances are constructed (including the Orchestrator's
+    # internal StatusVisualizer, below) - patching a class's __init__ only
+    # affects instances created after the patch is applied.
+    if args.enable_web:
+        try:
+            from src.visualizer.web_bridge import patch_visualizers
+            logger.info("Web interface integration enabled")
+            patch_visualizers()
+        except ImportError as e:
+            logger.warning(f"Failed to enable web interface integration: {e}")
+            logger.warning("Make sure you have installed the required web dependencies")
+
     # Create output directory for dependency graph
     output_dir = os.path.join("output", "dependency_graphs")
     os.makedirs(output_dir, exist_ok=True)
@@ -497,16 +520,6 @@ def main():
         # Default to topological order (already set in sorted_components)
         logger.info("Using topological ordering mode - processing components based on dependencies")
     
-    # Check if web interface is enabled
-    if args.enable_web:
-        try:
-            from src.visualizer.web_bridge import patch_visualizers
-            logger.info("Web interface integration enabled")
-            patch_visualizers()
-        except ImportError as e:
-            logger.warning(f"Failed to enable web interface integration: {e}")
-            logger.warning("Make sure you have installed the required web dependencies")
-
     # Initialize the progress visualizer
     visualizer = ProgressVisualizer(components, sorted_components)
     visualizer.initialize()

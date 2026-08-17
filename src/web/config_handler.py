@@ -12,6 +12,47 @@ import json
 import tempfile
 from pathlib import Path
 
+# Local Ollama models supported by the paste-a-link UI, matching the setups
+# tested in config/agent_config_qwen.yaml and config/agent_config_codellama.yaml.
+OLLAMA_MODELS = ["qwen2.5-coder:7b", "codellama:13b-instruct"]
+
+def build_ollama_config(model: str):
+    """
+    Build a full agent config dict for a local Ollama model.
+
+    Args:
+        model: One of OLLAMA_MODELS
+
+    Returns:
+        Dictionary containing the configuration, in the same shape as
+        config/agent_config_qwen.yaml
+
+    Raises:
+        ValueError: If the model is not one of the supported OLLAMA_MODELS
+    """
+    if model not in OLLAMA_MODELS:
+        raise ValueError(f"Unsupported model: {model}. Supported models: {OLLAMA_MODELS}")
+
+    return {
+        "llm": {
+            "type": "huggingface",
+            "model": model,
+            "api_base": "http://localhost:11434/v1",
+            "api_key": "ollama",
+            "temperature": 0.1,
+            "max_output_tokens": 4096,
+            "max_input_tokens": 8000,
+        },
+        "flow_control": {
+            "max_reader_search_attempts": 2,
+            "max_verifier_rejections": 1,
+            "status_sleep_time": 0,
+        },
+        "docstring_options": {
+            "overwrite_docstrings": False,
+        },
+    }
+
 def get_default_config():
     """
     Get the default configuration from agent_config.yaml.

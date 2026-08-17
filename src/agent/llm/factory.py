@@ -70,8 +70,12 @@ class LLMFactory:
         elif llm_type == "huggingface":
             return HuggingFaceLLM(
                 model_name=model,
+                api_base=config.get("api_base", "http://localhost:8000/v1"),
+                api_key=config.get("api_key", "EMPTY"),
                 device=config.get("device", "cuda"),
-                torch_dtype=config.get("torch_dtype", "float16")
+                torch_dtype=config.get("torch_dtype", "float16"),
+                max_input_tokens=config.get("max_input_tokens", 10000),
+                num_ctx=config.get("num_ctx", 8192)
             )
         else:
             raise ValueError(f"Unsupported LLM type: {llm_type}")
