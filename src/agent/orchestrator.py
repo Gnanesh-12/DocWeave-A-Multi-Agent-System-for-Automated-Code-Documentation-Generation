@@ -133,7 +133,8 @@ class Orchestrator(BaseAgent):
         ast_tree: ast.AST = None,
         dependency_graph: Dict[str, List[str]] = None,
         focal_node_dependency_path: str = None,
-        token_consume_focal: int = 0
+        token_consume_focal: int = 0,
+        components_map: Dict[str, Any] = None
     ) -> str:
         """Process a docstring generation request through the entire agent workflow.
         

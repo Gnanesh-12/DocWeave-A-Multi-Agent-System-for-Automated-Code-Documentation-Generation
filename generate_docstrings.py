@@ -59,6 +59,8 @@ from src.dependency_analyzer import (
     dependency_first_dfs, 
     build_graph_from_components
 )
+from src.dependency_analyzer.java_parser import JavaDependencyParser
+from src.dependency_analyzer.java_inserter import JavaInserter
 from src.visualizer import ProgressVisualizer
 from src.agent.orchestrator import Orchestrator
 
@@ -141,6 +143,8 @@ def generate_docstring_for_component(component: CodeComponent, orchestrator: Opt
 
     # do not use try/except here, we want to fail if there is an error
     if not orchestrator:
+        if test_mode == 'placeholder':
+            return generate_test_docstring(component)
         return ""
     
     file_path = component.file_path
@@ -157,43 +161,62 @@ def generate_docstring_for_component(component: CodeComponent, orchestrator: Opt
         # truncate the component code to 10000 tokens
         component_code = encoding.decode(encoding.encode(component_code)[:10000])
     
-    # Parse the file
-    with open(file_path, "r", encoding="utf-8") as f:
-        file_content = f.read()
+    is_java = file_path.endswith('.java')
     
-    ast_tree = ast.parse(file_content)
-    ast_node = None
+    # Parse the file if it's Python
+    if not is_java:
+        with open(file_path, "r", encoding="utf-8") as f:
+            file_content = f.read()
+        
+        ast_tree = ast.parse(file_content)
+        ast_node = None
+        
+        # Locate the AST node for the component
+        component_parts = component.id.split(".")
+        component_name = component_parts[-1]
     
-    # Locate the AST node for the component
-    component_parts = component.id.split(".")
-    component_name = component_parts[-1]
+        if component.component_type == "function":
+            # Find top-level function
+            for node in ast.iter_child_nodes(ast_tree):
+                if (isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) 
+                        and node.name == component_name):
+                    ast_node = node
+                    break
+                
+        elif component.component_type == "class":
+            # Find class
+            for node in ast.iter_child_nodes(ast_tree):
+                if isinstance(node, ast.ClassDef) and node.name == component_name:
+                    ast_node = node
+                    break
+                
+        elif component.component_type == "method":
+            # Find method inside class
+            class_name, method_name = component_parts[-2:]
+            for node in ast.iter_child_nodes(ast_tree):
+                if isinstance(node, ast.ClassDef) and node.name == class_name:
+                    for item in node.body:
+                        if (isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) 
+                                and item.name == method_name):
+                            ast_node = item
+                            break
+                    break
     
-    if component.component_type == "function":
-        # Find top-level function
-        for node in ast.iter_child_nodes(ast_tree):
-            if (isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) 
-                    and node.name == component_name):
-                ast_node = node
-                break
-            
-    elif component.component_type == "class":
-        # Find class
-        for node in ast.iter_child_nodes(ast_tree):
-            if isinstance(node, ast.ClassDef) and node.name == component_name:
-                ast_node = node
-                break
-            
-    elif component.component_type == "method":
-        # Find method inside class
-        class_name, method_name = component_parts[-2:]
-        for node in ast.iter_child_nodes(ast_tree):
-            if isinstance(node, ast.ClassDef) and node.name == class_name:
-                for item in node.body:
-                    if (isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) 
-                            and item.name == method_name):
-                        ast_node = item
-                        break
-                break
+    else:
+        ast_tree = None
+        ast_node = None
+        
+        # Adapt prompts for Java temporarily
+        original_writer_base_prompt = orchestrator.writer.base_prompt
+        original_writer_system = next((m for m in orchestrator.writer.memory if m["role"] == "system"), None)
+        
+        java_prompt = original_writer_base_prompt.replace(
+            "Follow Google docstring format:\n           - Use consistent indentation\n           - Maintain clear section separation\n           - Keep related information grouped",
+            "Follow standard Javadoc format (/** ... */):\n           - Use @param, @return, @throws as appropriate\n           - Do not use Python terminology like self or __init__\n           - Use Java terminology"
+        )
+        orchestrator.writer.base_prompt = java_prompt
+        if original_writer_system:
+            original_writer_system["content"] = java_prompt
     
     try:
         # Pass component.id as the focal_node_dependency_path
@@ -210,6 +233,11 @@ def generate_docstring_for_component(component: CodeComponent, orchestrator: Opt
     except Exception as e:
         print(f"Error generating docstring for {component.id}: {str(e)}")
         return ""
+    finally:
+        if is_java:
+            orchestrator.writer.base_prompt = original_writer_base_prompt
+            if original_writer_system:
+                original_writer_system["content"] = original_writer_base_prompt
 
 
 def set_docstring_in_file(file_path: str, component: CodeComponent, docstring: str) -> bool:
@@ -471,12 +499,19 @@ def main():
         logger.info("Running in PLACEHOLDER TEST MODE with placeholder docstrings (no LLM calls)")
     
     # Parse the repository to build the dependency graph
-    logger.info(f"Parsing repository: {repo_path}")
-    parser = DependencyParser(repo_path)
-    components = parser.parse_repository()
+    logger.info(f"Parsing Python files in repository: {repo_path}")
+    py_parser = DependencyParser(repo_path)
+    py_components = py_parser.parse_repository()
+    
+    logger.info(f"Parsing Java files in repository: {repo_path}")
+    java_parser = JavaDependencyParser(repo_path)
+    java_components = java_parser.parse_repository()
+    
+    components = {**py_components, **java_components}
     
     # Save the dependency graph for future reference
-    parser.save_dependency_graph(dependency_graph_path)
+    py_parser.components = components  # Hack to allow save_dependency_graph to work with all components
+    py_parser.save_dependency_graph(dependency_graph_path)
     logger.info(f"Dependency graph saved to: {dependency_graph_path}")
     
     # Build the graph for traversal
@@ -563,7 +598,11 @@ def main():
         
         # Update the file with the new docstring
         file_path = component.file_path
-        success = set_docstring_in_file(file_path, component, docstring)
+        if file_path.endswith('.java'):
+            java_inserter = JavaInserter()
+            success = java_inserter.insert_javadocs(file_path, [(component, docstring)])
+        else:
+            success = set_docstring_in_file(file_path, component, docstring)
         
         if success:
             logger.info(f"Successfully updated docstring for {component_id}")
@@ -581,8 +620,12 @@ def main():
         
         if same_file_components:
             logger.info(f"Re-parsing file {file_path} for updated line numbers")
-            parser = DependencyParser(repo_path)
-            updated_components = parser.parse_repository()
+            if file_path.endswith('.java'):
+                re_parser = JavaDependencyParser(repo_path)
+            else:
+                re_parser = DependencyParser(repo_path)
+                
+            updated_components = re_parser.parse_repository()
             
             # Update the components dictionary with new line numbers
             for comp_id, comp in updated_components.items():

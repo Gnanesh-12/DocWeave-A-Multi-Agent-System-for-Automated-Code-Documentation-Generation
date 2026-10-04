@@ -1,5 +1,4 @@
 # Local Ollama config: codellama:13b-instruct
-
 llm:
   type: "huggingface"
   model: "codellama:13b-instruct"

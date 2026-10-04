@@ -85,10 +85,10 @@ class ProgressVisualizer:
         print("\nComponents by type:")
         
         # Count components by type
-        type_counts = {"function": 0, "method": 0, "class": 0}
+        type_counts = {}
         for comp_id in self.processed:
             comp_type = self.components[comp_id].component_type
-            type_counts[comp_type] += 1
+            type_counts[comp_type] = type_counts.get(comp_type, 0) + 1
         
         for comp_type, count in type_counts.items():
             print(f"  {comp_type.capitalize()}: {count}")
@@ -178,16 +178,15 @@ class ProgressVisualizer:
         avg_deps = total_deps / len(self.components) if self.components else 0
         
         # Count components by type
-        types = {"function": 0, "method": 0, "class": 0}
+        types = {}
         for comp_id in self.components:
             comp_type = self.components[comp_id].component_type
-            types[comp_type] += 1
+            types[comp_type] = types.get(comp_type, 0) + 1
         
         print(f"\n{Fore.CYAN}Dependency Graph Statistics:{Style.RESET_ALL}")
         print(f"Total components: {len(self.components)}")
-        print(f"  Functions: {types['function']}")
-        print(f"  Methods: {types['method']}")
-        print(f"  Classes: {types['class']}")
+        for comp_type, count in types.items():
+            print(f"  {comp_type.capitalize()}: {count}")
         print(f"Average dependencies per component: {avg_deps:.2f}")
         print(f"Max dependencies: {max_deps[0]} (in component '{max_deps[1]}')")
         

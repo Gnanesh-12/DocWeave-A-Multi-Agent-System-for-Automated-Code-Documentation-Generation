@@ -66,17 +66,17 @@ def create_app(debug=True):
     @app.route('/api/test_api', methods=['POST'])
     def test_api():
         """Test the LLM API connection with a simple query."""
-        data = request.json
+        data = request.json or {}
         
-        if not data or 'api_key' not in data or not data['api_key']:
+        llm_type = data.get('llm_type', 'claude')
+        
+        if (not data.get('api_key')) and llm_type.lower() != 'huggingface':
             return jsonify({
                 'status': 'error',
                 'message': 'API key is required'
             })
         
-        # Get the configuration
-        llm_type = data.get('llm_type', 'claude')
-        api_key = data.get('api_key', '')
+        api_key = data.get('api_key', 'EMPTY' if llm_type.lower() == 'huggingface' else '')
         model = data.get('model', 'claude-3-5-haiku-latest')
         
         try:
@@ -143,6 +143,41 @@ def create_app(debug=True):
                     return jsonify({
                         'status': 'error',
                         'message': f'Error connecting to OpenAI API: {str(e)}'
+                    })
+                    
+            elif llm_type.lower() == 'huggingface':
+                try:
+                    import openai
+                    client = openai.OpenAI(
+                        api_key=api_key if api_key else "EMPTY",
+                        base_url=data.get('api_base') or "http://localhost:8000/v1"
+                    )
+                    
+                    # Send a simple test message
+                    response = client.chat.completions.create(
+                        model=model,
+                        max_tokens=100,
+                        messages=[
+                            {"role": "user", "content": "Who are you? Please keep your answer very brief."}
+                        ]
+                    )
+                    
+                    # Extract the response text
+                    if response and hasattr(response, 'choices') and len(response.choices) > 0:
+                        model_response = response.choices[0].message.content
+                    else:
+                        model_response = "No response content"
+                    
+                    return jsonify({
+                        'status': 'success',
+                        'message': 'Successfully connected to HuggingFace API',
+                        'model_response': model_response
+                    })
+                    
+                except Exception as e:
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'Error connecting to HuggingFace API: {str(e)}'
                     })
             
             else:
@@ -268,8 +303,10 @@ def create_app(debug=True):
         data = request.json
         
         # Validate repo path
-        repo_path = data['repo_path']
-        if not os.path.exists(repo_path):
+        repo_path = (data.get('repo_path') or '').strip()
+        is_github_url = repo_path.startswith(('http://', 'https://'))
+        
+        if not is_github_url and not os.path.exists(repo_path):
             return jsonify({'status': 'error', 'message': f'Repository path not found: {repo_path}'})
         
         # Save configuration
@@ -283,11 +320,16 @@ def create_app(debug=True):
         app.config['APP_STATE']['repo_path'] = repo_path
         app.config['APP_STATE']['is_running'] = True
         
+        def run_and_release():
+            try:
+                process_handler.start_generation_process(
+                    socketio, repo_path, config_path, app.config['APP_STATE']
+                )
+            finally:
+                app.config['APP_STATE']['is_running'] = False
+
         # Start the generation process
-        thread = socketio.start_background_task(
-            process_handler.start_generation_process,
-            socketio, repo_path, config_path
-        )
+        thread = socketio.start_background_task(run_and_release)
         
         app.config['APP_STATE']['process'] = thread
         

@@ -4,60 +4,75 @@
   <img src="assets/meta_logo_white.png" width="20%" alt="Meta Logo">
 </p>
 
+## What is DocAgent?
+
 **DocAgent** is an advanced, multi-agent system designed to automatically generate high-quality, context-aware docstrings for Python codebases. By leveraging a hierarchical processing approach, it ensures that even complex dependencies are thoroughly documented.
 
-## Overview
-
-High-quality documentation is essential for code maintainability. Current Large Language Models (LLMs) often generate superficial comments that lack broader context. DocAgent solves this by utilizing:
+Current Large Language Models (LLMs) often generate superficial comments that lack broader context. DocAgent solves this by utilizing:
 1. **Hierarchical Traversal**: Processes files with fewer dependencies first, building a strong documentation foundation from the bottom up.
 2. **Multi-Agent Architecture**: Employs a specialized team of agents (`Reader`, `Searcher`, `Writer`, `Verifier`), coordinated by an `Orchestrator`, to iteratively draft, refine, and verify docstrings.
 
-## Citation
+## Our Local LLM Setup
 
-If you use DocAgent in your research, please cite our [paper](https://arxiv.org/abs/2504.08725):
+We have configured this instance of DocAgent to run entirely locally using **Ollama**, completely avoiding the need for expensive API keys and ensuring data privacy. 
 
-```bibtex
-@misc{yang2025docagent,
-      title={DocAgent: A Multi-Agent System for Automated Code Documentation Generation}, 
-      author={Dayu Yang and Antoine Simoulin and Xin Qian and Xiaoyi Liu and Yuwei Cao and Zhaopu Teng and Grey Yang},
-      year={2025},
-      eprint={2504.08725},
-      archivePrefix={arXiv},
-      primaryClass={cs.SE}
-}
-```
+We have added support for the following open-weights models:
+1. **CodeLlama (13B Instruct)** - Optimized for coding tasks.
+2. **Qwen 2.5 Coder (7B)** - Highly capable at reasoning and code generation.
+
+The configurations for these models are located in:
+- `config/agent_config_codellama.yaml`
+- `config/agent_config_qwen.yaml`
 
 ## Quick Start
 
-### Installation
+### 1. Installation
+
+First, install the DocAgent dependencies. We recommend using a virtual environment:
 
 ```bash
-git clone <repository_url>
-cd DocAgent
+# Create and activate a virtual environment
 python -m venv venv
-source venv/bin/activate
+# On Windows:
+venv\Scripts\activate
+# On Linux/Mac:
+# source venv/bin/activate
+
+# Install the package and dependencies
 pip install -e .
 ```
 
-*Note: For optional features, install extras as needed (e.g., `pip install -e ".[dev,web]"`).*
+*Note: If you run into dependency conflicts with packages like `protobuf` during installation, make sure to uninstall the conflicting versions and let the `pip install -e .` resolve it.*
 
-### Configuration
+### 2. Setup Ollama
 
-Create your configuration file by copying the provided example:
+Make sure you have [Ollama](https://ollama.com/) installed and running locally. Pull the required models depending on which one you want to use:
+
 ```bash
-cp config/example_config.yaml config/agent_config.yaml
-```
-Edit `config/agent_config.yaml` to set your LLM provider, API keys, and model preferences. To use a local LLM (e.g., via `vllm`), point the API endpoint in the configuration to your local server.
+# To use CodeLlama
+ollama run codellama:13b-instruct
 
-### Usage
-
-**Command Line Interface (CLI):**
-```bash
-python generate_docstrings.py --repo-path <absolute_path_to_your_repo>
+# To use Qwen 2.5 Coder
+ollama run qwen2.5-coder:7b
 ```
 
-**Web UI:**
-DocAgent includes a web interface for real-time monitoring and configuration.
+### 3. Usage
+
+You can run the docstring generation by specifying your desired configuration file. 
+
+**Using CodeLlama:**
+```bash
+python generate_docstrings.py --repo-path <absolute_path_to_your_repo> --config-path config/agent_config_codellama.yaml
+```
+
+**Using Qwen 2.5 Coder:**
+```bash
+python generate_docstrings.py --repo-path <absolute_path_to_your_repo> --config-path config/agent_config_qwen.yaml
+```
+
+### 4. Web UI (Optional)
+
+DocAgent includes a web interface for real-time monitoring.
 ```bash
 python run_web_ui.py --host 0.0.0.0 --port 5000
 ```
@@ -71,6 +86,21 @@ DocAgent provides a separate web-based system for evaluating docstring completen
 python src/web_eval/app.py --host 0.0.0.0 --port 5001
 ```
 Access the evaluation UI at `http://localhost:5001`.
+
+## Citation
+
+If you use DocAgent in your research, please cite the [paper](https://arxiv.org/abs/2504.08725):
+
+```bibtex
+@misc{yang2025docagent,
+      title={DocAgent: A Multi-Agent System for Automated Code Documentation Generation}, 
+      author={Dayu Yang and Antoine Simoulin and Xin Qian and Xiaoyi Liu and Yuwei Cao and Zhaopu Teng and Grey Yang},
+      year={2025},
+      eprint={2504.08725},
+      archivePrefix={arXiv},
+      primaryClass={cs.SE}
+}
+```
 
 ## License
 

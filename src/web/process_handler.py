@@ -22,36 +22,27 @@ from . import visualization_handler
 process = None
 should_stop = False
 
-# Custom output handler to intercept and parse the output
-class OutputHandler(threading.Thread):
-    """Thread to handle output from the docstring generation process."""
+class OutputParser:
+    """Parser to handle output from the docstring generation process."""
     
-    def __init__(self, process, socketio):
+    def __init__(self, socketio):
         """
-        Initialize the output handler.
+        Initialize the output parser.
         
         Args:
-            process: The subprocess.Popen object for the docstring generation process
             socketio: The Flask-SocketIO instance for sending updates to clients
         """
-        threading.Thread.__init__(self)
-        self.process = process
         self.socketio = socketio
-        self.daemon = True
-    
-    def run(self):
-        """Read output from the process and update the visualization state."""
-        global should_stop
         
         # Regular expressions for parsing different types of output
-        status_regex = re.compile(r'STATUS: Agent: (\w+), Message: (.+)')
-        component_regex = re.compile(r'COMPONENT: (.+) in file (.+)')
-        progress_regex = re.compile(r'PROGRESS: (\d+)/(\d+) components processed')
-        log_regex = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - (\w+) - (\w+) - (.+)')
+        self.status_regex = re.compile(r'STATUS: Agent: (\w+), Message: (.+)')
+        self.component_regex = re.compile(r'COMPONENT: (.+) in file (.+)')
+        self.progress_regex = re.compile(r'PROGRESS: (\d+)/(\d+) components processed')
+        self.log_regex = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - (\w+) - (\w+) - (.+)')
         
         # Additional regex to detect agent activity from regular logs
-        agent_activity_regex = re.compile(r'(reader|writer|searcher|verifier)', re.IGNORECASE)
-        docstring_update_regex = re.compile(r'Successfully updated docstring for (.+)|Completed docstring generation for (.+)', re.IGNORECASE)
+        self.agent_activity_regex = re.compile(r'(reader|writer|searcher|verifier)', re.IGNORECASE)
+        self.docstring_update_regex = re.compile(r'Successfully updated docstring for (.+)|Completed docstring generation for (.+)', re.IGNORECASE)
         
         # Patterns to filter out visualization-related output from logs
         visualization_patterns = [
@@ -83,18 +74,18 @@ class OutputHandler(threading.Thread):
             r'^Input:',          # Input header
             r'\[.*?\]',          # Status messages in brackets
         ]
-        visualization_filter = re.compile('|'.join(visualization_patterns))
+        self.visualization_filter = re.compile('|'.join(visualization_patterns))
         
-        # Read each line from the process output
-        for line in iter(self.process.stdout.readline, b''):
-            if should_stop:
-                break
-                
-            # Decode the line
+    def process_line(self, line):
+        """Process a single line of output."""
+        # Decode the line if it's bytes
+        if isinstance(line, bytes):
             try:
                 line = line.decode('utf-8').rstrip()
             except UnicodeDecodeError:
-                continue
+                return
+        else:
+            line = line.rstrip()
             
             # Process workflow status lines separately to update agent status
             if 'Processing:' in line or 'File:' in line:
@@ -115,21 +106,21 @@ class OutputHandler(threading.Thread):
                 self.socketio.emit('status_update', visualization_handler.get_current_status())
             
             # Add to log messages - filter out visualization
-            if not visualization_filter.search(line):
+            if not self.visualization_filter.search(line):
                 visualization_handler.add_log_message(line)
                 self.socketio.emit('log_line', line)
             
             # Check for status updates
-            status_match = status_regex.search(line)
+            status_match = self.status_regex.search(line)
             if status_match:
                 agent, message = status_match.groups()
                 visualization_handler.update_agent_status(agent, message)
                 self.socketio.emit('status_update', visualization_handler.get_current_status())
-                continue
+                return
             
             # Check for agent activity in regular logs
             if not status_match:  # Only check if we didn't already match a status
-                agent_match = agent_activity_regex.search(line)
+                agent_match = self.agent_activity_regex.search(line)
                 if agent_match and ('active' in line.lower() or 'using' in line.lower() or 'processing' in line.lower()):
                     # Extract agent name from logs
                     agent = agent_match.group(1).capitalize()
@@ -137,23 +128,23 @@ class OutputHandler(threading.Thread):
                     self.socketio.emit('status_update', visualization_handler.get_current_status())
             
             # Check for component updates
-            component_match = component_regex.search(line)
+            component_match = self.component_regex.search(line)
             if component_match:
                 component, file_path = component_match.groups()
                 visualization_handler.update_component_focus(component, file_path)
                 visualization_handler.update_file_status(file_path, 'in_progress')
                 self.socketio.emit('status_update', visualization_handler.get_current_status())
-                continue
+                return
             
             # Check for progress updates
-            progress_match = progress_regex.search(line)
+            progress_match = self.progress_regex.search(line)
             if progress_match:
                 processed, total = progress_match.groups()
                 # We don't have the current component or component status from this regex,
                 # so we'll just update the counts
                 visualization_handler.update_progress(int(total), int(processed), '', {})
                 self.socketio.emit('status_update', visualization_handler.get_current_status())
-                continue
+                return
             
             # Also check for progress updates in normal log lines
             progress_in_log = re.search(r'Processing component (\d+)/(\d+)', line)
@@ -163,7 +154,7 @@ class OutputHandler(threading.Thread):
                 self.socketio.emit('status_update', visualization_handler.get_current_status())
             
             # Check for docstring updates
-            docstring_update_match = docstring_update_regex.search(line)
+            docstring_update_match = self.docstring_update_regex.search(line)
             if docstring_update_match:
                 component = docstring_update_match.group(1) or docstring_update_match.group(2)
                 # If this is a file path, extract it
@@ -186,7 +177,7 @@ class OutputHandler(threading.Thread):
                         self.socketio.emit('status_update', visualization_handler.get_current_status())
             
             # Check for log messages
-            log_match = log_regex.search(line)
+            log_match = self.log_regex.search(line)
             if log_match:
                 _, level, message = log_match.groups()
                 # If the message indicates completion of a file, update the file status
@@ -203,7 +194,7 @@ class OutputHandler(threading.Thread):
                 
                 self.socketio.emit('log_message', {'level': level, 'message': message})
 
-def start_generation_process(socketio, repo_path: str, config_path: str):
+def start_generation_process(socketio, repo_path: str, config_path: str, app_state: Optional[Dict] = None):
     """
     Start the docstring generation process.
     
@@ -211,6 +202,7 @@ def start_generation_process(socketio, repo_path: str, config_path: str):
         socketio: The Flask-SocketIO instance for sending updates to clients
         repo_path: Path to the repository to generate docstrings for
         config_path: Path to the configuration file
+        app_state: Application state dictionary to update repo_path after cloning
     """
     global process, should_stop
     
@@ -229,6 +221,145 @@ def start_generation_process(socketio, repo_path: str, config_path: str):
             'level': 'warning',
             'message': 'Web bridge not available. Some features may not work correctly.'
         })
+    
+    # Handle GitHub URL cloning
+    is_github_url = repo_path.startswith(('http://', 'https://'))
+    if is_github_url:
+        visualization_handler.update_agent_status("System", f"Cloning repository {repo_path}...")
+        socketio.emit('status_update', visualization_handler.get_current_status())
+        socketio.emit('log_message', {
+            'level': 'info',
+            'message': f'Cloning repository {repo_path}... this may take a moment.'
+        })
+        
+        try:
+            import subprocess
+            import eventlet
+            import uuid
+            from . import git_handler
+            WORKSPACE_DIR = Path(__file__).parent.parent.parent / 'workspace'
+            
+            # Validate URL
+            url = repo_path.strip()
+            if not git_handler._VALID_URL_RE.match(url):
+                raise ValueError("Only http(s) git URLs are supported")
+                
+            WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
+            dest = WORKSPACE_DIR / uuid.uuid4().hex
+            
+            # Run git clone and assign to global process so it can be stopped
+            global process
+            import time
+            import shutil
+            import tempfile
+            
+            cmd = ['git', 'clone', '--progress', '--depth', '1', url, str(dest)]
+            
+            # We set environment variables to disable credential prompts which can hang the process
+            env = os.environ.copy()
+            env['GIT_TERMINAL_PROMPT'] = '0'
+            env['GCM_INTERACTIVE'] = 'false'
+            
+            # Use a temporary file instead of PIPE to avoid Eventlet/Windows deadlock
+            with tempfile.NamedTemporaryFile(mode='w+', delete=False, dir=WORKSPACE_DIR) as temp_log:
+                log_path = temp_log.name
+                
+            try:
+                with open(log_path, 'w') as log_file:
+                    process = subprocess.Popen(cmd, stdout=log_file, stderr=subprocess.STDOUT, env=env)
+                
+                start_time = time.time()
+                timeout_seconds = 300 # 5 minutes timeout for cloning
+                clone_failed = False
+                error_output = []
+                
+                with open(log_path, 'r') as log_read:
+                    # Poll until finished, sleeping to yield to eventlet loop
+                    while process.poll() is None:
+                        # Check for cancellation
+                        if should_stop:
+                            process.terminate()
+                            clone_failed = True
+                            error_output.append("Cloning cancelled by user.")
+                            break
+                            
+                        # Check for timeout
+                        if time.time() - start_time > timeout_seconds:
+                            process.terminate()
+                            clone_failed = True
+                            error_output.append("Cloning timed out after 5 minutes.")
+                            break
+                        
+                        # Read new lines from log file
+                        lines = log_read.readlines()
+                        for line in lines:
+                            # git progress uses \r, handle that
+                            cleaned = line.replace('\r', '\n').strip()
+                            for part in cleaned.split('\n'):
+                                if part.strip():
+                                    error_output.append(part.strip())
+                                    if "Receiving objects" in part or "Resolving deltas" in part:
+                                        socketio.emit('log_message', {'level': 'info', 'message': part.strip()})
+                        
+                        eventlet.sleep(0.1)
+                        
+                    # Final read after process exits
+                    lines = log_read.readlines()
+                    for line in lines:
+                        cleaned = line.replace('\r', '\n').strip()
+                        for part in cleaned.split('\n'):
+                            if part.strip():
+                                error_output.append(part.strip())
+                                if "Receiving objects" in part or "Resolving deltas" in part:
+                                    socketio.emit('log_message', {'level': 'info', 'message': part.strip()})
+                                    
+                return_code = process.returncode if process else -1
+            finally:
+                process = None # Clear global process
+                try:
+                    os.remove(log_path)
+                except:
+                    pass
+            
+            if clone_failed or return_code != 0:
+                # Cleanup partially cloned dir
+                if dest.exists():
+                    try:
+                        shutil.rmtree(dest, ignore_errors=True)
+                    except:
+                        pass
+                        
+                stderr_str = "\n".join(error_output)
+                raise Exception(f"Git clone failed: {stderr_str}")
+                
+            repo_path = str(dest)
+            
+            if app_state is not None:
+                app_state['repo_path'] = repo_path
+                
+            socketio.emit('log_message', {
+                'level': 'info',
+                'message': f'Successfully cloned repository to {repo_path}'
+            })
+            
+            # Validate it has source files
+            has_source = False
+            for root, dirs, files in os.walk(repo_path):
+                if any(f.endswith(('.py', '.java')) for f in files):
+                    has_source = True
+                    break
+            
+            if not has_source:
+                error_msg = 'No Python (.py) or Java (.java) source files found in the cloned repository.'
+                socketio.emit('error', {'message': error_msg})
+                socketio.emit('log_message', {'level': 'error', 'message': error_msg})
+                return
+                
+        except Exception as e:
+            error_msg = f'Failed to clone repository: {str(e)}'
+            socketio.emit('error', {'message': error_msg})
+            socketio.emit('log_message', {'level': 'error', 'message': error_msg})
+            return
     
     # Get the repository structure and update the visualization state
     try:
@@ -255,34 +386,63 @@ def start_generation_process(socketio, repo_path: str, config_path: str):
     
     # Start the process
     try:
-        # Create a temporary file for redirecting stdout and stderr
-        process = subprocess.Popen(
-            [sys.executable, str(script_path), 
-             '--repo-path', repo_path, 
-             '--config-path', config_path,
-             '--enable-web'],  # Enable web integration
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            bufsize=1,
-            universal_newlines=False
-        )
+        import tempfile
+        import eventlet
+        WORKSPACE_DIR = Path(__file__).parent.parent.parent / 'workspace'
+        WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
         
-        # Start the output handler
-        handler = OutputHandler(process, socketio)
-        handler.start()
-        
-        # Wait for the process to complete
-        return_code = process.wait()
-        
-        if return_code == 0:
-            socketio.emit('complete', {
-                'message': 'Docstring generation completed successfully'
-            })
-        else:
-            socketio.emit('error', {
-                'message': f'Docstring generation failed with return code {return_code}'
-            })
-    
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False, dir=WORKSPACE_DIR) as temp_log:
+            log_path = temp_log.name
+            
+        try:
+            with open(log_path, 'w') as log_file:
+                process = subprocess.Popen(
+                    [sys.executable, str(script_path), 
+                     '--repo-path', repo_path, 
+                     '--config-path', config_path,
+                     '--enable-web'],  # Enable web integration
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    env=os.environ.copy()
+                )
+            
+            parser = OutputParser(socketio)
+            
+            with open(log_path, 'r', encoding='utf-8', errors='ignore') as log_read:
+                while process.poll() is None:
+                    if should_stop:
+                        process.terminate()
+                        break
+                        
+                    lines = log_read.readlines()
+                    for line in lines:
+                        parser.process_line(line)
+                        
+                    eventlet.sleep(0.1)
+                    
+                # Final read
+                lines = log_read.readlines()
+                for line in lines:
+                    parser.process_line(line)
+                    
+            return_code = process.returncode if process else -1
+            
+            if return_code == 0 and not should_stop:
+                socketio.emit('complete', {
+                    'message': 'Docstring generation completed successfully'
+                })
+            elif should_stop:
+                socketio.emit('error', {'message': 'Docstring generation was stopped.'})
+            else:
+                socketio.emit('error', {
+                    'message': f'Docstring generation failed with return code {return_code}'
+                })
+        finally:
+            try:
+                os.remove(log_path)
+            except:
+                pass
+                
     except Exception as e:
         socketio.emit('error', {
             'message': f'Error starting docstring generation process: {str(e)}'

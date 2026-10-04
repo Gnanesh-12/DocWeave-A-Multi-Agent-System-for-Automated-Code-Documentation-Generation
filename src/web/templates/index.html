@@ -1,27 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DocAgent - Docstring Generation</title>
-    
+
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
-    
+
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
+
 <body>
     <div class="container-fluid vh-100 p-0 d-flex flex-column">
         <!-- Header -->
         <header class="bg-dark text-white p-3 d-flex justify-content-between align-items-center">
             <h1 class="h3 mb-0">DocAgent </h1>
-            <img src="{{ url_for('static', filename='assets/meta_logo_white.png') }}" alt="Meta Logo" class="header-logo" height="30">
+            <img src="{{ url_for('static', filename='assets/meta_logo_white.png') }}" alt="Meta Logo"
+                class="header-logo" height="30">
         </header>
-        
+
         <div class="row flex-grow-1 m-0">
             <!-- Sidebar for configuration and completeness -->
             <div id="sidebar" class="col-md-3 bg-light p-3 sidebar">
@@ -30,9 +33,10 @@
                     <form id="config-form">
                         <div class="mb-3">
                             <label for="repo-path" class="form-label">Repository Path</label>
-                            <input type="text" class="form-control" id="repo-path" placeholder="e.g., data/raw_test_repo">
+                            <input type="text" class="form-control" id="repo-path"
+                                placeholder="e.g., data/raw_test_repo">
                         </div>
-                        
+
                         <div class="mb-3">
                             <label class="form-label">LLM Configuration</label>
                             <div class="card p-2 mb-2">
@@ -41,7 +45,7 @@
                                     <select class="form-select" id="llm-type">
                                         <option value="claude">Claude</option>
                                         <option value="openai">OpenAI</option>
-                                        <option value="huggingface">HuggingFace</option>
+                                        <option value="huggingface">HuggingFace / Ollama</option>
                                     </select>
                                 </div>
                                 <div class="mb-2">
@@ -49,12 +53,37 @@
                                     <input type="password" class="form-control" id="llm-api-key">
                                 </div>
                                 <div class="mb-2">
+                                    <label for="llm-api-base" class="form-label">API Base URL (Optional)</label>
+                                    <input type="text" class="form-control" id="llm-api-base"
+                                        placeholder="http://localhost:11434/v1">
+                                </div>
+                                <div class="mb-2">
                                     <label for="llm-model" class="form-label">Model</label>
-                                    <input type="text" class="form-control" id="llm-model" placeholder="e.g., claude-3-5-haiku-latest">
+                                    <select class="form-select" id="llm-model">
+                                        <optgroup label="HuggingFace (Ollama/Local)">
+                                            <option value="qwen2.5-coder:7b">qwen2.5-coder:7b</option>
+                                            <option value="codellama:13b-instruct">codellama:13b-instruct</option>
+                                        </optgroup>
+                                        <optgroup label="Claude (Anthropic)">
+                                            <option value="claude-3-5-haiku-latest">claude-3-5-haiku-latest</option>
+                                            <option value="claude-3-5-sonnet">claude-3-5-sonnet</option>
+                                            <option value="claude-3-opus">claude-3-opus</option>
+                                        </optgroup>
+                                        <optgroup label="OpenAI">
+                                            <option value="gpt-4o">gpt-4o</option>
+                                            <option value="gpt-4-turbo">gpt-4-turbo</option>
+                                            <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+                                        </optgroup>
+                                        <optgroup label="Gemini">
+                                            <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+                                            <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+                                        </optgroup>
+                                    </select>
                                 </div>
                                 <div class="mb-2">
                                     <label for="llm-temperature" class="form-label">Temperature</label>
-                                    <input type="number" class="form-control" id="llm-temperature" min="0" max="1" step="0.1" value="0.1">
+                                    <input type="number" class="form-control" id="llm-temperature" min="0" max="1"
+                                        step="0.1" value="0.1">
                                 </div>
                                 <div class="mb-2">
                                     <label for="llm-max-tokens" class="form-label">Max Tokens</label>
@@ -67,16 +96,18 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="mb-3">
                             <label class="form-label">Flow Control</label>
                             <div class="card p-2 mb-2">
                                 <div class="mb-2">
-                                    <label for="max-reader-search-attempts" class="form-label">Max Reader Search Attempts</label>
+                                    <label for="max-reader-search-attempts" class="form-label">Max Reader Search
+                                        Attempts</label>
                                     <input type="number" class="form-control" id="max-reader-search-attempts" value="2">
                                 </div>
                                 <div class="mb-2">
-                                    <label for="max-verifier-rejections" class="form-label">Max Verifier Rejections</label>
+                                    <label for="max-verifier-rejections" class="form-label">Max Verifier
+                                        Rejections</label>
                                     <input type="number" class="form-control" id="max-verifier-rejections" value="1">
                                 </div>
                                 <div class="mb-2">
@@ -85,7 +116,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="mb-3">
                             <label class="form-label">Docstring Options</label>
                             <div class="card p-2 mb-2">
@@ -97,11 +128,11 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <button type="submit" class="btn btn-primary w-100" id="start-button">Start Generation</button>
                     </form>
                 </div>
-                
+
                 <div id="completeness-section" class="mt-4 d-none">
                     <h2 class="h4 mb-3">Completeness</h2>
                     <div id="completeness-data" class="card p-3">
@@ -114,7 +145,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Main content -->
             <div id="main-content" class="col-md-9 p-0 d-none">
                 <div class="row h-100 m-0">
@@ -136,7 +167,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Right Top: Repository Structure -->
                     <div class="col-md-6 p-2 h-50">
                         <div class="card h-100">
@@ -152,16 +183,18 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Bottom: Logs -->
                     <div class="col-md-12 p-2 h-50">
                         <div class="card h-100">
-                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                            <div
+                                class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                                 <span>Logs</span>
                                 <small id="progress-time" class="text-white">Elapsed: 00:00</small>
                             </div>
                             <div class="card-body d-flex flex-column">
-                                <div id="log-container" class="flex-grow-1 overflow-auto bg-dark text-light p-2 font-monospace">
+                                <div id="log-container"
+                                    class="flex-grow-1 overflow-auto bg-dark text-light p-2 font-monospace">
                                     <div id="log-content">
                                         <!-- Log messages will be appended here -->
                                     </div>
@@ -196,17 +229,17 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Bootstrap and jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- Socket.IO -->
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
-    
+
     <!-- D3.js for visualization -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    
+
     <!-- Custom JavaScript -->
     <script src="{{ url_for('static', filename='js/config.js') }}"></script>
     <script src="{{ url_for('static', filename='js/status-visualizer.js') }}"></script>
@@ -215,4 +248,5 @@
     <script src="{{ url_for('static', filename='js/completeness.js') }}"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
-</html> 
+
+</html>
