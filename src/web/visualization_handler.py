@@ -33,7 +33,8 @@ class VisualizationState:
                 'total_components': 0,
                 'processed_components': 0,
                 'current_component': '',
-                'component_status': {}
+                'component_status': {},
+                'file_progress': {}
             }
             cls._instance.repo_structure = {
                 'tree': {},
@@ -95,6 +96,18 @@ def update_progress(total: int, processed: int, current: str, components_status:
     state.progress['processed_components'] = processed
     state.progress['current_component'] = current
     state.progress['component_status'] = components_status
+
+def update_structured_progress(event_data: Dict[str, Any]):
+    """
+    Update progress from a structured event.
+    
+    Args:
+        event_data: Dictionary containing the progress event payload
+    """
+    state.progress['total_components'] = event_data.get('global_total', 0)
+    state.progress['processed_components'] = event_data.get('global_processed', 0)
+    state.progress['current_component'] = event_data.get('current_component', '')
+    state.progress['file_progress'] = event_data.get('file_progress', {})
 
 def add_log_message(message: str):
     """

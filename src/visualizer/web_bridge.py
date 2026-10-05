@@ -146,6 +146,7 @@ class WebProgressAdapter:
         """
         self.original = original_visualizer
         self.socket_manager = WebSocketManager()
+        self.errors = set()
         
         # Store original methods to avoid recursion
         self._original_update = original_visualizer.update
@@ -160,12 +161,55 @@ class WebProgressAdapter:
             component_id: ID of the component being processed
             status: Status of the component
         """
+        if status == "error" and component_id:
+            self.errors.add(component_id)
+            
         # Call the original method directly
         result = self._original_update(component_id, status)
 
-        # Special message format for the web interface to parse (see note
-        # in WebStatusAdapter.update() about why this is unconditional).
-        print(f"PROGRESS: {len(self.original.processed)}/{len(self.original.sorted_order)} components processed")
+        # Compute file-level progress
+        file_progress = {}
+        for comp_id, comp in self.original.components.items():
+            file_path = comp.relative_path
+            if file_path not in file_progress:
+                file_progress[file_path] = {
+                    "file": file_path,
+                    "processed_components": 0,
+                    "failed_components": 0,
+                    "total_components": 0,
+                    "status": "waiting"
+                }
+            file_progress[file_path]["total_components"] += 1
+            
+            if comp_id in self.original.processed:
+                file_progress[file_path]["processed_components"] += 1
+            elif comp_id in self.errors:
+                file_progress[file_path]["failed_components"] += 1
+            elif comp_id == self.original.current:
+                file_progress[file_path]["status"] = "processing"
+
+        # Resolve status based on completion
+        for fp, fstat in file_progress.items():
+            total_finished = fstat["processed_components"] + fstat["failed_components"]
+            if fstat["total_components"] > 0 and total_finished == fstat["total_components"]:
+                if fstat["failed_components"] == fstat["total_components"]:
+                    fstat["status"] = "failed"
+                elif fstat["failed_components"] > 0:
+                    fstat["status"] = "partial"
+                else:
+                    fstat["status"] = "completed"
+            elif total_finished > 0 and fstat["status"] == "waiting":
+                fstat["status"] = "processing"
+
+        import json
+        event = {
+            "type": "progress_update",
+            "global_total": len(self.original.sorted_order),
+            "global_processed": len(self.original.processed),
+            "current_component": self.original.current,
+            "file_progress": file_progress
+        }
+        print(f"EVENT: {json.dumps(event)}", flush=True)
 
         if self.socket_manager.is_enabled():
             # Get the component status from the original visualizer
@@ -183,7 +227,8 @@ class WebProgressAdapter:
                     'total_components': len(self.original.sorted_order),
                     'processed_components': len(self.original.processed),
                     'current_component': self.original.current,
-                    'component_status': component_status
+                    'component_status': component_status,
+                    'file_progress': file_progress
                 }
             })
 
