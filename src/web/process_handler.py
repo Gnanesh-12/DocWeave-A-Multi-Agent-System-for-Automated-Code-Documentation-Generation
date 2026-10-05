@@ -233,7 +233,6 @@ def start_generation_process(socketio, repo_path: str, config_path: str, app_sta
         })
         
         try:
-            import subprocess
             import eventlet
             import uuid
             from . import git_handler
