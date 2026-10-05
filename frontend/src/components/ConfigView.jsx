@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { testApi } from '../api'
 
 export default function ConfigView({ url, setUrl, model, setModel, models, onStart, busy }) {
-  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [testingStatus, setTestingStatus] = useState(null) // null, 'testing', 'success', 'error'
   const [testingMessage, setTestingMessage] = useState('')
 
@@ -89,36 +88,7 @@ export default function ConfigView({ url, setUrl, model, setModel, models, onSta
           )}
         </div>
 
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <div className="collapsible-header" onClick={() => setAdvancedOpen(!advancedOpen)}>
-            <span className={`collapsible-icon ${advancedOpen ? 'open' : ''}`}>▶</span>
-            Advanced Options
-          </div>
-          <div className={`collapsible-content ${advancedOpen ? 'open' : ''}`}>
-            <div className="input-row">
-              <div>
-                <label>Reader Search Attempts</label>
-                <input type="number" defaultValue="3" disabled={busy} />
-              </div>
-              <div>
-                <label>Verifier Rejections</label>
-                <input type="number" defaultValue="3" disabled={busy} />
-              </div>
-            </div>
-            <div className="input-row">
-              <div>
-                <label>Status Update Interval</label>
-                <input type="number" defaultValue="1" disabled={busy} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', paddingTop: '1.5rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, cursor: 'pointer' }}>
-                  <input type="checkbox" defaultChecked disabled={busy} />
-                  Overwrite Existing Documentation
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
+
 
         <div style={{ marginTop: '1.5rem' }}>
           <button className="primary" onClick={onStart} disabled={busy || !url.trim()} style={{ width: '100%', padding: '0.75rem', fontSize: '1rem' }}>

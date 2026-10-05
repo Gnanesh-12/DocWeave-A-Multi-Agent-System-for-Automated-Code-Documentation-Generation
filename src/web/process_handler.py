@@ -37,7 +37,7 @@ class OutputParser:
         # Regular expressions for parsing different types of output
         self.status_regex = re.compile(r'STATUS: Agent: (\w+), Message: (.+)')
         self.component_regex = re.compile(r'COMPONENT: (.+) in file (.+)')
-        self.progress_regex = re.compile(r'PROGRESS: (\d+)/(\d+) components processed')
+        self.event_regex = re.compile(r'EVENT: (.+)')
         self.log_regex = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - (\w+) - (\w+) - (.+)')
         
         # Additional regex to detect agent activity from regular logs
@@ -73,6 +73,7 @@ class OutputParser:
             r'Code:',            # Input code
             r'^Input:',          # Input header
             r'\[.*?\]',          # Status messages in brackets
+            r'EVENT:',           # Structured event data
         ]
         self.visualization_filter = re.compile('|'.join(visualization_patterns))
         
@@ -136,14 +137,17 @@ class OutputParser:
                 self.socketio.emit('status_update', visualization_handler.get_current_status())
                 return
             
-            # Check for progress updates
-            progress_match = self.progress_regex.search(line)
-            if progress_match:
-                processed, total = progress_match.groups()
-                # We don't have the current component or component status from this regex,
-                # so we'll just update the counts
-                visualization_handler.update_progress(int(total), int(processed), '', {})
-                self.socketio.emit('status_update', visualization_handler.get_current_status())
+            # Check for structured events
+            event_match = self.event_regex.search(line)
+            if event_match:
+                import json
+                try:
+                    event_data = json.loads(event_match.group(1))
+                    if event_data.get("type") == "progress_update":
+                        visualization_handler.update_structured_progress(event_data)
+                        self.socketio.emit('status_update', visualization_handler.get_current_status())
+                except Exception as e:
+                    print(f"Error parsing EVENT: {e}")
                 return
             
             # Also check for progress updates in normal log lines

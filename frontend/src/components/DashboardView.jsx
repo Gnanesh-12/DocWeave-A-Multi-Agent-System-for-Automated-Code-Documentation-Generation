@@ -43,12 +43,13 @@ function AgentPipeline({ activeAgent }) {
 function LogViewer({ logs }) {
   const containerRef = useRef(null)
   const [autoScroll, setAutoScroll] = useState(true)
+  const [showLogs, setShowLogs] = useState(true)
 
   useEffect(() => {
-    if (autoScroll && containerRef.current) {
+    if (autoScroll && showLogs && containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight
     }
-  }, [logs, autoScroll])
+  }, [logs, autoScroll, showLogs])
 
   const handleScroll = () => {
     if (!containerRef.current) return
@@ -71,35 +72,42 @@ function LogViewer({ logs }) {
     <div className="card log-viewer-card">
       <div className="log-toolbar">
         <div>Logs</div>
-        {!autoScroll && (
-          <button style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} onClick={() => {
-            setAutoScroll(true)
-            if (containerRef.current) {
-              containerRef.current.scrollTop = containerRef.current.scrollHeight
-            }
-          }}>
-            Jump to latest ↓
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {!autoScroll && showLogs && (
+            <button style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} onClick={() => {
+              setAutoScroll(true)
+              if (containerRef.current) {
+                containerRef.current.scrollTop = containerRef.current.scrollHeight
+              }
+            }}>
+              Jump to latest ↓
+            </button>
+          )}
+          <button style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} onClick={() => setShowLogs(!showLogs)}>
+            {showLogs ? 'Hide logs' : 'Show logs'}
           </button>
-        )}
+        </div>
       </div>
-      <div className="log-scroll-area" ref={containerRef} onScroll={handleScroll}>
-        {logs.length === 0 ? (
-          <div style={{ color: '#858585', padding: '1rem' }}>Waiting for output...</div>
-        ) : null}
-        {logs.map((log, i) => {
-          let lvl = (log.level || 'INFO').toUpperCase()
-          if (lvl === 'WARNING') lvl = 'WARN'
-          // Some logs from socket might just be strings in log.text
-          const text = log.message || log.text || ''
-          return (
-            <div key={i} className="log-line">
-              <div className="log-time">{log.time || formatTime()}</div>
-              <div className={`log-level ${lvl}`}>{lvl}</div>
-              <div className="log-msg">{text}</div>
-            </div>
-          )
-        })}
-      </div>
+      {showLogs && (
+        <div className="log-scroll-area" ref={containerRef} onScroll={handleScroll}>
+          {logs.length === 0 ? (
+            <div style={{ color: '#858585', padding: '1rem' }}>Waiting for output...</div>
+          ) : null}
+          {logs.map((log, i) => {
+            let lvl = (log.level || 'INFO').toUpperCase()
+            if (lvl === 'WARNING') lvl = 'WARN'
+            // Some logs from socket might just be strings in log.text
+            const text = log.message || log.text || ''
+            return (
+              <div key={i} className="log-line">
+                <div className="log-time">{log.time || formatTime()}</div>
+                <div className={`log-level ${lvl}`}>{lvl}</div>
+                <div className="log-msg">{text}</div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -139,27 +147,41 @@ function FileTable({ files }) {
   return (
     <div className="card">
       <div className="card-header">
-        <h2>File Status</h2>
+        <h2>File Status ({files?.length || 0})</h2>
       </div>
       <div className="file-table-container">
         <table className="file-table">
           <thead>
             <tr>
               <th>File</th>
+              <th>Progress</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            {files && files.slice(0, 20).map(f => (
-              <tr key={f.file}>
-                <td className="file-name">{f.file}</td>
-                <td>
-                  {f.status === 'complete' ? '✓' : f.status === 'in_progress' ? '●' : '—'}
-                </td>
-              </tr>
-            ))}
+            {files && files.map(f => {
+              const total = f.total_components || 0
+              const processed = f.processed_components || 0
+              const perc = total > 0 ? ((processed / total) * 100).toFixed(1) : 0
+
+              return (
+                <tr key={f.file || f.path}>
+                  <td className="file-name">{f.file || f.name}</td>
+                  <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
+                    {total > 0 ? `${processed} / ${total} (${perc}%)` : ''}
+                  </td>
+                  <td>
+                    {f.status === 'completed' || f.status === 'complete' ? <span style={{ color: 'var(--success, #28a745)' }}>✓ Completed</span> :
+                      (f.status === 'processing' || f.status === 'in_progress') ? <span style={{ color: 'var(--accent)' }}>● Processing</span> :
+                        f.status === 'failed' ? <span style={{ color: 'var(--danger)' }}>✕ Failed</span> :
+                          f.status === 'partial' ? <span style={{ color: 'var(--warning, #ffc107)' }}>⚠ Partial</span> :
+                            f.status === 'waiting' || f.status === 'not_started' ? <span style={{ color: 'var(--text-muted)' }}>○ Waiting</span> : '—'}
+                  </td>
+                </tr>
+              )
+            })}
             {(!files || files.length === 0) && (
-              <tr><td colSpan="2" style={{ color: 'var(--text-muted)' }}>No files processed yet.</td></tr>
+              <tr><td colSpan="3" style={{ color: 'var(--text-muted)' }}>No files processed yet.</td></tr>
             )}
           </tbody>
         </table>
@@ -194,9 +216,16 @@ export default function DashboardView({ agentStatus, progress, repoStructure, lo
     stateMessage = 'Generating documentation...'
   }
 
-  // Extract file list from progress.component_status or repoStructure
+  // Extract file list from progress.file_progress if available, else fallback
   let filesList = []
-  if (repoStructure && repoStructure.tree) {
+  if (progress && progress.file_progress) {
+    filesList = Object.values(progress.file_progress)
+    // SORTING: processing first, then completed/failed/partial, then waiting
+    filesList.sort((a, b) => {
+      const order = { 'processing': 0, 'completed': 1, 'partial': 1, 'failed': 1, 'waiting': 2 }
+      return (order[a.status] ?? 3) - (order[b.status] ?? 3)
+    })
+  } else if (repoStructure && repoStructure.tree) {
     const collectFiles = (node) => {
       if (node.type === 'file') filesList.push(node)
       if (node.children) node.children.forEach(collectFiles)
@@ -243,13 +272,16 @@ export default function DashboardView({ agentStatus, progress, repoStructure, lo
           </div>
         </div>
 
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+          <AgentPipeline activeAgent={agentStatus.active_agent} />
+          <FileTable files={filesList} />
+        </div>
+
         <LogViewer logs={logs} />
       </div>
 
       <div className="dashboard-sidebar">
-        <AgentPipeline activeAgent={agentStatus.active_agent} />
         <RepoStructure repoStructure={repoStructure} />
-        <FileTable files={filesList} />
       </div>
     </div>
   )
