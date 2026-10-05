@@ -1,0 +1,25 @@
+# Local Ollama config: qwen3:8b
+
+llm:
+  type: "huggingface"
+  model: "qwen3:8b"
+  api_base: "http://localhost:11434/v1"
+  api_key: "ollama"
+  temperature: 0.1
+  max_output_tokens: 2048
+  max_input_tokens: 8000
+  reasoning_effort: "none"   # qwen3 is a thinking model; "none" skips the slow hidden reasoning
+
+flow_control:
+  max_reader_search_attempts: 2
+  max_verifier_rejections: 1
+  status_sleep_time: 0.1
+
+docstring_options:
+  overwrite_docstrings: false
+
+perplexity:
+  api_key: "your-perplexity-api-key-here"
+  model: "sonar"
+  temperature: 0.1
+  max_output_tokens: 250

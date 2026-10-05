@@ -13,8 +13,30 @@ import tempfile
 from pathlib import Path
 
 # Local Ollama models supported by the paste-a-link UI, matching the setups
-# tested in config/agent_config_qwen.yaml and config/agent_config_codellama.yaml.
-OLLAMA_MODELS = ["qwen2.5-coder:7b", "codellama:13b-instruct"]
+# compared by compare_models.py (see config/agent_config_*.yaml for the first three).
+OLLAMA_MODELS = [
+    "qwen2.5-coder:7b",
+    "qwen2.5-coder:14b",
+    "qwen3:8b",
+    "deepseek-coder-v2:16b",
+    "phi4:14b",
+    "llama3.1:8b",
+    "codellama:13b-instruct",
+]
+
+
+def installed_ollama_models():
+    """Supported models that are actually installed (so the UI never offers one that would fail).
+
+    Falls back to the full supported list if the `ollama` CLI cannot be queried.
+    """
+    import subprocess
+    try:
+        out = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=15).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return list(OLLAMA_MODELS)
+    installed = {line.split()[0] for line in out.splitlines()[1:] if line.strip()}
+    return [m for m in OLLAMA_MODELS if m in installed] or list(OLLAMA_MODELS)
 
 def build_ollama_config(model: str):
     """
@@ -33,16 +55,21 @@ def build_ollama_config(model: str):
     if model not in OLLAMA_MODELS:
         raise ValueError(f"Unsupported model: {model}. Supported models: {OLLAMA_MODELS}")
 
+    llm = {
+        "type": "huggingface",
+        "model": model,
+        "api_base": "http://localhost:11434/v1",
+        "api_key": "ollama",
+        "temperature": 0.1,
+        "max_output_tokens": 4096,
+        "max_input_tokens": 8000,
+    }
+    if model.startswith("qwen3"):
+        # Thinking model: skip the slow hidden reasoning pass.
+        llm["reasoning_effort"] = "none"
+
     return {
-        "llm": {
-            "type": "huggingface",
-            "model": model,
-            "api_base": "http://localhost:11434/v1",
-            "api_key": "ollama",
-            "temperature": 0.1,
-            "max_output_tokens": 4096,
-            "max_input_tokens": 8000,
-        },
+        "llm": llm,
         "flow_control": {
             "max_reader_search_attempts": 2,
             "max_verifier_rejections": 1,

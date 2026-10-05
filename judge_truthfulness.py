@@ -47,19 +47,38 @@ def extract_documented_components(source: str):
                 yield node.name, segment
 
 
+_VERDICT_WORDS = r"(PARTIALLY_TRUTHFUL|HALLUCINATED|TRUTHFUL)"
+
+
+def parse_verdict(response: str) -> tuple[str, str]:
+    """Pull (verdict, issues) out of a judge response, tolerating sloppy tags.
+
+    Small judges often write 'VERDICT:TRUTHFUL' or '<VERDICT>TRUTHFUL' instead of the exact
+    '<VERDICT>...</VERDICT>', so accept any verdict word near the word VERDICT, else the last
+    verdict word in the reply.
+    """
+    match = re.search(r"VERDICT\W{0,3}" + _VERDICT_WORDS, response, re.IGNORECASE)
+    if not match:
+        found = re.findall(r"\b" + _VERDICT_WORDS + r"\b", response, re.IGNORECASE)
+        verdict = found[-1].upper() if found else "UNPARSEABLE"
+    else:
+        verdict = match.group(1).upper()
+    issues_match = re.search(r"<ISSUES>(.*?)</ISSUES>", response, re.DOTALL)
+    if issues_match:
+        issues = issues_match.group(1).strip()
+    else:
+        tail = re.split(r"ISSUES\W*", response, maxsplit=1, flags=re.IGNORECASE)
+        issues = (tail[1] if len(tail) > 1 else response).strip()[:200]
+    return verdict, issues
+
+
 def judge_component(llm, name: str, code_segment: str) -> tuple[str, str]:
     messages = [
         llm.format_message("system", SYSTEM_PROMPT),
         llm.format_message("user", f"Component: {name}\n\n```python\n{code_segment}\n```"),
     ]
     response = llm.generate(messages=messages, temperature=0.0, max_tokens=2048)
-
-    verdict_match = re.search(r"<VERDICT>(.*?)</VERDICT>", response, re.DOTALL)
-    issues_match = re.search(r"<ISSUES>(.*?)</ISSUES>", response, re.DOTALL)
-
-    verdict = verdict_match.group(1).strip() if verdict_match else "UNPARSEABLE"
-    issues = issues_match.group(1).strip() if issues_match else response.strip()[:200]
-    return verdict, issues
+    return parse_verdict(response)
 
 
 def judge_file(llm, file_path: str):

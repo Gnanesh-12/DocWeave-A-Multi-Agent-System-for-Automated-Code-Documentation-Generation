@@ -250,8 +250,8 @@ def create_app(debug=True):
 
     @app.route('/api/models')
     def get_ollama_models():
-        """List the local Ollama models supported by the paste-a-link UI."""
-        return jsonify({'models': config_handler.OLLAMA_MODELS})
+        """List the supported local Ollama models that are installed."""
+        return jsonify({'models': config_handler.installed_ollama_models()})
 
     @app.route('/api/dependency-graph')
     def get_dependency_graph_route():

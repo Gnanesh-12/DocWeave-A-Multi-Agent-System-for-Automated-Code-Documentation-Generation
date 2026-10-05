@@ -15,7 +15,8 @@ class HuggingFaceLLM(BaseLLM):
         device: str = None,  # Kept for backward compatibility
         torch_dtype: Any = None,  # Kept for backward compatibility
         max_input_tokens: int = 10000,  # Maximum input tokens allowed
-        num_ctx: int = 8192  # Context window to request from the server (e.g. Ollama defaults to a small window otherwise)
+        num_ctx: int = 8192,  # Context window to request from the server (e.g. Ollama defaults to a small window otherwise)
+        reasoning_effort: Optional[str] = None  # Ollama: "none" turns off a thinking model's reasoning (e.g. qwen3)
     ):
         """Initialize HuggingFace LLM via vLLM API.
         
@@ -34,6 +35,7 @@ class HuggingFaceLLM(BaseLLM):
         )
         self.max_input_tokens = max_input_tokens
         self.num_ctx = num_ctx
+        self.reasoning_effort = reasoning_effort
         # Initialize tokenizer based on model
         try:
             self.tokenizer = tiktoken.encoding_for_model(model_name)
@@ -202,7 +204,8 @@ class HuggingFaceLLM(BaseLLM):
             messages=formatted_messages,
             temperature=temperature,
             max_tokens=max_output_tokens,
-            extra_body={"options": {"num_ctx": self.num_ctx}}
+            extra_body={"options": {"num_ctx": self.num_ctx},
+                        **({"reasoning_effort": self.reasoning_effort} if self.reasoning_effort else {})}
         )
         
         # Extract the generated text

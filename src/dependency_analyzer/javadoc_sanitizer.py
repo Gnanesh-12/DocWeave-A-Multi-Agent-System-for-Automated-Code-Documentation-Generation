@@ -208,4 +208,4 @@ def sanitize_javadoc(docstring: str, component) -> str:
             while block and not block[-1].strip():
                 block.pop()
             result.extend(block)
-    return '\n'.join(result).strip()
+    return re.sub(r'\n[ \t]*(?:\n[ \t]*)+', '\n\n', '\n'.join(result)).strip()

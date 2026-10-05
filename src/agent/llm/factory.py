@@ -77,7 +77,8 @@ class LLMFactory:
                 device=config.get("device", "cuda"),
                 torch_dtype=config.get("torch_dtype", "float16"),
                 max_input_tokens=config.get("max_input_tokens", 10000),
-                num_ctx=config.get("num_ctx", 8192)
+                num_ctx=config.get("num_ctx", 8192),
+                reasoning_effort=config.get("reasoning_effort")
             )
         else:
             raise ValueError(f"Unsupported LLM type: {llm_type}")
