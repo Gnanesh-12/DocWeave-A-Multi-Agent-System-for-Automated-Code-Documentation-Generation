@@ -1,17 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
-import RepoForm from './components/RepoForm.jsx'
-import ProgressPanel from './components/ProgressPanel.jsx'
+import React, { useEffect, useRef, useState } from 'react'
+import Header from './components/Header.jsx'
+import ConfigView from './components/ConfigView.jsx'
+import DashboardView from './components/DashboardView.jsx'
 import ResultsView from './components/ResultsView.jsx'
 import DependencyGraph from './components/DependencyGraph.jsx'
-import { cloneRepo, getModels, startGeneration, getResults, getStatus, getSocket } from './api.js'
+import { cloneRepo, getModels, startOllama, stopGeneration, getResults, getStatus, getSocket } from './api.js'
 
-const MAX_LOG_LINES = 500
+const MAX_LOG_LINES = 1000
 
 export default function App() {
   const [phase, setPhase] = useState('form') // 'form' | 'running' | 'results'
   const [busy, setBusy] = useState(false)
-  const [busyText, setBusyText] = useState('')
   const [error, setError] = useState(null)
+  const [appStatus, setAppStatus] = useState('ready') // 'ready', 'running', 'complete', 'error', 'cancelled'
 
   const [url, setUrl] = useState('')
   const [models, setModels] = useState([])
@@ -19,6 +20,7 @@ export default function App() {
 
   const [agentStatus, setAgentStatus] = useState({})
   const [progress, setProgress] = useState({})
+  const [repoStructure, setRepoStructure] = useState({})
   const [logs, setLogs] = useState([])
   const [files, setFiles] = useState([])
 
@@ -26,23 +28,25 @@ export default function App() {
   phaseRef.current = phase
 
   useEffect(() => {
-    getModels().then((data) => {
-      const list = data.models || []
-      setModels(list)
-      if (list.length > 0) setModel(list[0])
-    })
+    getModels()
+      .then((data) => {
+        const list = data.models || []
+        setModels(list)
+        if (list.length > 0) setModel(list[0])
+      })
+      .catch((err) => {
+        console.error("Failed to fetch models from backend:", err)
+        setError("Failed to connect to the backend server. Is it running?")
+        setAppStatus("error")
+      })
   }, [])
 
-  // Resume state on load/reconnect: a run started earlier may have already
-  // finished (or still be running) server-side even if this page is fresh -
-  // e.g. after a refresh, or a WebSocket drop during a long CPU-only run
-  // that missed the one-shot 'complete' event. Without this, a finished job
-  // would be invisible until you manually hit /api/results.
   useEffect(() => {
     async function resumeState() {
       const status = await getStatus()
       if (status.is_running) {
         setPhase('running')
+        setAppStatus('running')
         return
       }
       if (status.repo_path) {
@@ -50,6 +54,7 @@ export default function App() {
         if (result.status === 'success') {
           setFiles(result.files || [])
           setPhase('results')
+          setAppStatus('complete')
         }
       }
     }
@@ -62,23 +67,31 @@ export default function App() {
     const onStatusUpdate = (data) => {
       if (data.status) setAgentStatus(data.status)
       if (data.progress) setProgress(data.progress)
+      if (data.repo_structure) setRepoStructure(data.repo_structure)
     }
     const onLogMessage = (data) => {
-      setLogs((prev) => [...prev, { text: data.message, level: data.level }].slice(-MAX_LOG_LINES))
+      setLogs((prev) => [...prev, { message: data.message, level: data.level, time: new Date().toLocaleTimeString('en-US', { hour12: false }) }].slice(-MAX_LOG_LINES))
     }
     const onLogLine = (line) => {
-      setLogs((prev) => [...prev, { text: line }].slice(-MAX_LOG_LINES))
+      setLogs((prev) => [...prev, { message: line, level: 'INFO', time: new Date().toLocaleTimeString('en-US', { hour12: false }) }].slice(-MAX_LOG_LINES))
     }
     const onComplete = async () => {
       const result = await getResults()
       setFiles(result.files || [])
       setBusy(false)
-      setPhase('results')
+      setAppStatus('complete')
+      // Only transition to results if we want. For now, keep dashboard visible but complete.
+      // setPhase('results')
     }
     const onError = (data) => {
-      setError(data.message || 'Docstring generation failed')
+      // If stopped manually
+      if (data.message && data.message.toLowerCase().includes('stopped')) {
+        setAppStatus('cancelled')
+      } else {
+        setError(data.message || 'Docstring generation failed')
+        setAppStatus('error')
+      }
       setBusy(false)
-      setPhase('form')
     }
 
     socket.on('status_update', onStatusUpdate)
@@ -99,72 +112,99 @@ export default function App() {
   async function handleStart() {
     setError(null)
     setBusy(true)
-    setBusyText('Cloning repository...')
+    setAppStatus('running')
 
     const cloneResult = await cloneRepo(url.trim())
     if (cloneResult.status !== 'success') {
       setError(cloneResult.message || 'Failed to clone repository')
       setBusy(false)
+      setAppStatus('error')
       return
     }
 
-    setBusyText('Starting generation...')
-    const startResult = await startGeneration(model)
+    const startResult = await startOllama(model)
     if (startResult.status !== 'success') {
       setError(startResult.message || 'Failed to start generation')
       setBusy(false)
+      setAppStatus('error')
       return
     }
 
     setAgentStatus({})
     setProgress({})
     setLogs([])
-    setBusyText('Running...')
     setPhase('running')
+  }
+
+  async function handleStop() {
+    await stopGeneration()
+    setBusy(false)
+    setAppStatus('cancelled')
   }
 
   function handleReset() {
     setUrl('')
     setFiles([])
     setError(null)
+    setAppStatus('ready')
     setPhase('form')
   }
 
   return (
     <div className="app">
-      <div className="eyebrow">Local · Ollama-powered</div>
-      <div className="app-header">
-        <div className="app-mark">DA</div>
-        <h1>DocAgent</h1>
-      </div>
-      <p className="subtitle">Paste a public GitHub repo, generate docstrings locally with Ollama.</p>
+      <Header status={appStatus} isRunning={busy} onStop={handleStop} />
 
-      {error && <div className="error-banner">{error}</div>}
+      <main className="main-content">
+        {error && (
+          <div className="error-banner">
+            <h3>Error</h3>
+            <p>{error}</p>
+          </div>
+        )}
 
-      {phase === 'form' && (
-        <RepoForm
-          url={url}
-          setUrl={setUrl}
-          model={model}
-          setModel={setModel}
-          models={models}
-          busy={busy}
-          busyText={busyText}
-          onStart={handleStart}
-        />
-      )}
+        {phase === 'form' && (
+          <ConfigView
+            url={url}
+            setUrl={setUrl}
+            model={model}
+            setModel={setModel}
+            models={models}
+            busy={busy}
+            onStart={handleStart}
+          />
+        )}
 
-      {phase === 'running' && (
-        <ProgressPanel agentStatus={agentStatus} progress={progress} logs={logs} />
-      )}
+        {phase === 'running' && (
+          <>
+            <DashboardView
+              agentStatus={agentStatus}
+              progress={progress}
+              repoStructure={repoStructure}
+              logs={logs}
+              status={appStatus}
+            />
+            {appStatus === 'complete' && (
+              <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
+                <button className="primary" onClick={() => setPhase('results')}>View Results & Diff</button>
+                <button onClick={handleReset}>Process Another Repository</button>
+              </div>
+            )}
+            {(appStatus === 'cancelled' || appStatus === 'error') && (
+              <div style={{ marginTop: '1.5rem' }}>
+                <button onClick={handleReset}>Start Over</button>
+              </div>
+            )}
+          </>
+        )}
 
-      {phase === 'results' && (
-        <>
-          <button className="reset-link" onClick={handleReset}>&larr; Process another repository</button>
-          <DependencyGraph />
-          <ResultsView files={files} />
-        </>
-      )}
+        {phase === 'results' && (
+          <>
+            <button style={{ marginBottom: '1rem' }} onClick={handleReset}>&larr; Process another repository</button>
+            <DependencyGraph />
+            <ResultsView files={files} />
+          </>
+        )}
+      </main>
     </div>
   )
 }

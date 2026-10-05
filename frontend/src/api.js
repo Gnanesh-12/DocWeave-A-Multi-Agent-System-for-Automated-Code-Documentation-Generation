@@ -1,63 +1,69 @@
-import { io } from 'socket.io-client'
-
-async function postJson(url, body) {
-  const res = await fetch(url, {
+export function cloneRepo(url) {
+  return fetch('/api/clone', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  return res.json()
+    body: JSON.stringify({ url })
+  }).then(res => res.json())
 }
 
-async function getJson(url) {
-  const res = await fetch(url)
-  return res.json()
+export function startGeneration(config) {
+  return fetch('/api/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  }).then(res => res.json())
 }
 
-export function cloneRepo(url) {
-  return postJson('/api/clone', { url })
+export function startOllama(model) {
+  return fetch('/api/start_ollama', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model })
+  }).then(res => res.json())
+}
+
+export function stopGeneration() {
+  return fetch('/api/stop', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  }).then(res => res.json())
 }
 
 export function getModels() {
-  return getJson('/api/models')
-}
-
-export function startGeneration(model) {
-  return postJson('/api/start_ollama', { model })
-}
-
-export function getResults() {
-  return getJson('/api/results')
-}
-
-export function getDependencyGraph() {
-  return getJson('/api/dependency-graph')
+  return fetch('/api/models').then(res => res.json())
 }
 
 export function getStatus() {
-  return getJson('/api/status')
+  return fetch('/api/status').then(res => res.json())
 }
 
-// A single shared socket, connected on demand. The backend emits (see
-// src/web/process_handler.py and visualization_handler.py for the exact
-// payload shapes this listens for):
-//   status_update  -> { status: {active_agent, status_message, current_component, current_file},
-//                        progress: {total_components, processed_components, ...} }
-//   log_message    -> { level, message }
-//   log_line       -> "<raw line>"
-//   docstring_updated -> { component }
-//   complete       -> { message }
-//   error          -> { message }
+export function testApi(data) {
+  return fetch('/api/test_api', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  }).then(res => res.json())
+}
+
+export function getResults() {
+  return fetch('/api/results').then(res => res.json())
+}
+
+export function getCompleteness() {
+  return fetch('/api/completeness').then(res => res.json())
+}
+
+export function getDependencyGraph() {
+  return fetch('/api/dependency-graph').then(res => res.json())
+}
+
+import { io } from 'socket.io-client'
+
 let socket = null
 
 export function getSocket() {
   if (!socket) {
-    // Connect directly to the Flask origin rather than through Vite's dev
-    // proxy - Vite's Node-based proxy doesn't reliably relay the WebSocket
-    // upgrade to Flask-SocketIO's eventlet server (falls back to constant
-    // ECONNRESET). Flask-SocketIO already allows cross-origin connections
-    // (cors_allowed_origins="*"), so connecting directly works cleanly.
-    socket = io('http://localhost:5000', { path: '/socket.io' })
+    socket = io('http://127.0.0.1:5000', { path: '/socket.io' })
   }
   return socket
 }
