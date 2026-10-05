@@ -372,6 +372,15 @@ class Searcher(BaseAgent):
 
         return result
 
+    def _external_search_enabled(self) -> bool:
+        """True only when a real (non-placeholder) Perplexity API key is configured."""
+        try:
+            api_key = PerplexityAPI().api_key or ''
+        except Exception:
+            return False
+        api_key = str(api_key).strip()
+        return bool(api_key) and not api_key.lower().startswith('your-')
+
     def _gather_external_info(self, queries: List[str]) -> Dict[str, str]:
         """Gather external information using Perplexity API.
         
@@ -383,7 +392,13 @@ class Searcher(BaseAgent):
         """
         if not queries:
             return {}
-            
+
+        # Web search is optional. Without a real Perplexity key (the shipped configs
+        # hold a placeholder) skip it, so local runs make no outbound requests and
+        # no "Error: ..." text is fed to the Writer as context.
+        if not self._external_search_enabled():
+            return {}
+
         try:
             perplexity = PerplexityAPI()
             responses = perplexity.batch_query(

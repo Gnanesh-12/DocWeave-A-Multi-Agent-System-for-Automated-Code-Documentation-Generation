@@ -4,10 +4,6 @@ from pathlib import Path
 import yaml
 
 from .base import BaseLLM
-from .openai_llm import OpenAILLM
-from .claude_llm import ClaudeLLM
-from .huggingface_llm import HuggingFaceLLM
-from .gemini_llm import GeminiLLM
 
 class LLMFactory:
     """Factory class for creating LLM instances."""
@@ -49,25 +45,31 @@ class LLMFactory:
             if provider_limits:
                 rate_limits = provider_limits
         
+        # Providers are imported only when selected, so a local (Ollama) run never
+        # loads or contacts the hosted-API SDKs.
         if llm_type == "openai":
+            from .openai_llm import OpenAILLM
             return OpenAILLM(
                 api_key=config["api_key"],
                 model=model,
                 rate_limits=rate_limits
             )
         elif llm_type == "claude":
+            from .claude_llm import ClaudeLLM
             return ClaudeLLM(
                 api_key=config["api_key"],
                 model=model,
                 rate_limits=rate_limits
             )
         elif llm_type == "gemini":
+            from .gemini_llm import GeminiLLM
             return GeminiLLM(
                 api_key=config["api_key"],
                 model=model,
                 rate_limits=rate_limits
             )
         elif llm_type == "huggingface":
+            from .huggingface_llm import HuggingFaceLLM
             return HuggingFaceLLM(
                 model_name=model,
                 api_base=config.get("api_base", "http://localhost:8000/v1"),

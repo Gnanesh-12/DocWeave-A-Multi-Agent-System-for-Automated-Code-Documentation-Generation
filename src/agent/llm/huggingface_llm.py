@@ -1,7 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
-import torch
 import tiktoken
 from .base import BaseLLM
 
@@ -14,7 +13,7 @@ class HuggingFaceLLM(BaseLLM):
         api_base: str = "http://localhost:8000/v1",
         api_key: str = "EMPTY",
         device: str = None,  # Kept for backward compatibility
-        torch_dtype: torch.dtype = None,  # Kept for backward compatibility
+        torch_dtype: Any = None,  # Kept for backward compatibility
         max_input_tokens: int = 10000,  # Maximum input tokens allowed
         num_ctx: int = 8192  # Context window to request from the server (e.g. Ollama defaults to a small window otherwise)
     ):

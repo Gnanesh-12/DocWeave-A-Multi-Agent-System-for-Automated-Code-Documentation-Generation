@@ -1,13 +1,17 @@
 import { useEffect, useRef } from 'react'
-import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from 'd3-force'
+import { forceSimulation, forceLink, forceManyBody, forceX, forceY, forceCollide } from 'd3-force'
 import { select } from 'd3-selection'
 import { drag } from 'd3-drag'
-import { zoom } from 'd3-zoom'
+import { zoom, zoomIdentity } from 'd3-zoom'
 
 const TYPE_COLORS = {
-  class: '#4f7cff',
-  method: '#7ee2a8',
-  function: '#e8c46a',
+  class: '#0366d6',
+  interface: '#0366d6',
+  enum: '#0366d6',
+  record: '#0366d6',
+  method: '#28a745',
+  constructor: '#28a745',
+  function: '#d9a400',
 }
 
 export default function DependencyForceGraph({ nodes, edges }) {
@@ -46,21 +50,40 @@ export default function DependencyForceGraph({ nodes, edges }) {
       .attr('orient', 'auto')
       .append('path')
       .attr('d', 'M0,-5L10,0L0,5')
-      .attr('fill', '#4a5468')
+      .attr('fill', '#6a737d')
 
     const g = svg.append('g')
 
-    svg.call(
-      zoom()
-        .scaleExtent([0.2, 4])
-        .on('zoom', (event) => {
-          g.attr('transform', event.transform)
-        })
-    )
+    const zoomBehavior = zoom()
+      .scaleExtent([0.2, 4])
+      .filter((event) => (event.type === 'wheel' ? event.ctrlKey : !event.ctrlKey) && !event.button)
+      .on('zoom', (event) => {
+        g.attr('transform', event.transform)
+      })
+    svg.call(zoomBehavior).on('dblclick.zoom', null)
+
+    // Scale and center the whole graph (labels included) inside the box.
+    const fitToView = () => {
+      const padding = 28
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+      for (const d of nodeData) {
+        minX = Math.min(minX, d.x - 10)
+        maxX = Math.max(maxX, d.x + 14 + d.label.length * 6.6)
+        minY = Math.min(minY, d.y - 10)
+        maxY = Math.max(maxY, d.y + 10)
+      }
+      const boxW = maxX - minX
+      const boxH = maxY - minY
+      const scale = Math.min((width - 2 * padding) / boxW, (height - 2 * padding) / boxH, 1.3)
+      const tx = (width - boxW * scale) / 2 - minX * scale
+      const ty = (height - boxH * scale) / 2 - minY * scale
+      svg.call(zoomBehavior.transform, zoomIdentity.translate(tx, ty).scale(scale))
+    }
+    svg.on('dblclick', fitToView)
 
     const link = g
       .append('g')
-      .attr('stroke', '#2d3340')
+      .attr('stroke', '#b1b8c0')
       .attr('stroke-width', 1.5)
       .selectAll('line')
       .data(linkData)
@@ -76,8 +99,8 @@ export default function DependencyForceGraph({ nodes, edges }) {
 
     node.append('circle')
       .attr('r', 8)
-      .attr('fill', (d) => TYPE_COLORS[d.type] || '#9aa0a6')
-      .attr('stroke', (d) => (d.has_docstring ? '#7ee2a8' : '#ff9b93'))
+      .attr('fill', (d) => TYPE_COLORS[d.type] || '#959da5')
+      .attr('stroke', (d) => (d.has_docstring ? '#28a745' : '#cb2431'))
       .attr('stroke-width', 2)
 
     node.append('title').text((d) => d.id)
@@ -87,23 +110,33 @@ export default function DependencyForceGraph({ nodes, edges }) {
       .text((d) => d.label)
       .attr('x', 12)
       .attr('y', 4)
-      .attr('fill', '#cdd8ff')
+      .attr('fill', '#24292e')
       .attr('font-size', '11px')
       .attr('font-family', 'monospace')
 
+    const paint = () => {
+      link
+        .attr('x1', (d) => d.source.x)
+        .attr('y1', (d) => d.source.y)
+        .attr('x2', (d) => d.target.x)
+        .attr('y2', (d) => d.target.y)
+      node.attr('transform', (d) => `translate(${d.x},${d.y})`)
+    }
+
+    // forceX/forceY keep disconnected clusters near the middle instead of drifting apart.
     const simulation = forceSimulation(nodeData)
-      .force('link', forceLink(linkData).id((d) => d.id).distance(80))
-      .force('charge', forceManyBody().strength(-220))
-      .force('center', forceCenter(width / 2, height / 2))
-      .force('collide', forceCollide(32))
-      .on('tick', () => {
-        link
-          .attr('x1', (d) => d.source.x)
-          .attr('y1', (d) => d.source.y)
-          .attr('x2', (d) => d.target.x)
-          .attr('y2', (d) => d.target.y)
-        node.attr('transform', (d) => `translate(${d.x},${d.y})`)
-      })
+      .force('link', forceLink(linkData).id((d) => d.id).distance(100))
+      .force('charge', forceManyBody().strength(-320))
+      .force('x', forceX(width / 2).strength(0.03))
+      .force('y', forceY(height / 2).strength(0.2))
+      .force('collide', forceCollide((d) => 16 + d.label.length * 3.4))
+      .stop()
+
+    // Settle the layout before the first paint so the graph appears already fitted.
+    simulation.tick(300)
+    paint()
+    fitToView()
+    simulation.on('tick', paint)
 
     node.call(
       drag()
