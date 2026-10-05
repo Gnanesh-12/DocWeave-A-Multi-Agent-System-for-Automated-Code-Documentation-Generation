@@ -576,8 +576,12 @@ button:disabled {
   margin-right: 0.55rem;
 }
 
-.dep-type-class { background: rgba(91, 140, 255, 0.16); color: var(--accent-strong); }
-.dep-type-method { background: var(--good-soft); color: #7fe0b3; }
+.dep-type-class,
+.dep-type-interface,
+.dep-type-enum,
+.dep-type-record { background: rgba(91, 140, 255, 0.16); color: var(--accent-strong); }
+.dep-type-method,
+.dep-type-constructor { background: var(--good-soft); color: #7fe0b3; }
 .dep-type-function { background: rgba(240, 180, 41, 0.16); color: #f3c765; }
 
 .dep-documented { color: var(--text); }

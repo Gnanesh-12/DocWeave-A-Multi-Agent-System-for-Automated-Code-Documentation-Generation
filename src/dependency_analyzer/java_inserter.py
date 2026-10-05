@@ -5,6 +5,7 @@ import tree_sitter
 import tree_sitter_java
 
 from .ast_parser import CodeComponent
+from .javadoc_sanitizer import sanitize_javadoc
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +117,7 @@ class JavaInserter:
         for comp, doc in valid_insertions:
             start_byte = comp.node.start_byte
             indent = self.get_indentation(source_bytes, start_byte)
-            javadoc_str = self.format_javadoc(doc, indent)
+            javadoc_str = self.format_javadoc(sanitize_javadoc(doc, comp), indent)
             
             if not javadoc_str:
                 continue

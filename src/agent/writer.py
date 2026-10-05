@@ -1,8 +1,10 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates
+import re
 from typing import Dict, Any, Optional
 from abc import abstractmethod
 from .base import BaseAgent
 from .reader import CodeComponentType
+from ..dependency_analyzer.javadoc_sanitizer import tag_requirements
 
 class Writer(BaseAgent):
     """Agent responsible for generating high-quality docstrings based on the code and context."""
@@ -14,6 +16,10 @@ class Writer(BaseAgent):
             config_path: Optional path to the configuration file
         """
         super().__init__("Writer", config_path=config_path)
+
+        # Language of the component being documented: "python" or "java".
+        # Set per component by generate_docstrings.py; selects the prompts below.
+        self.language = "python"
         
         # Base prompt that applies to all documentation
         self.base_prompt = """You are a Writer agent responsible for generating high-quality 
@@ -116,6 +122,124 @@ class Writer(BaseAgent):
            - Include common parameter combinations
            - Demonstrate error handling if relevant"""
 
+        # Java prompts. Kept self-contained and sent with every request (rather than
+        # only as the system message) because the system message can be dropped when
+        # the Writer's memory is cleared.
+        self.java_base_prompt = """You are documenting JAVA code. Write the body of a standard Javadoc comment.
+
+        Format rules:
+        1. Do NOT include the /** and */ markers or leading asterisks; they are added automatically.
+        2. Start with a one-sentence summary that ends with a period. Leave a blank line, then add details if needed.
+        3. Use ONLY standard Javadoc block tags: @param, @return, @throws (and @param <T> for type parameters).
+           Never invent tags such as @summary, @description, @when, @where, @how or @example.
+           Do not use @since, @author, @version or @see.
+        4. Do not use Python conventions or terms: no "Args:", "Returns:", "Raises:", "self", "__init__", or docstring sections.
+        5. Do not use markdown (no backticks, no code fences). Use {@code ...} for inline code and <pre>{@code ...}</pre> for an example, only when it helps.
+        6. Document only what the code shows. Never invent parameters, return values or exceptions.
+        7. Use plain, specific language and Java terminology (method, constructor, field, interface, record)."""
+
+        self.java_class_prompt = """You are documenting a Java CLASS, INTERFACE, ENUM or RECORD.
+
+        Describe:
+        - Summary: what the type represents, in one sentence, without just repeating its name.
+        - Details: its role and responsibility, where it fits in the system, and how it is typically used.
+
+        Tag rules for a type:
+        - Do NOT use @return or @throws; those belong to methods.
+        - Do NOT document a method's parameters here. Do not describe the type as if it were a single method.
+        - For a RECORD, add one @param line per record component.
+        - For a generic type, add one @param <T> line per type parameter."""
+
+        self.java_method_prompt = """You are documenting a Java METHOD or CONSTRUCTOR.
+
+        Describe:
+        - Summary: what it does (or, for a constructor, what it creates), in one sentence.
+        - Details: when to use it, important behaviour, side effects and thread-safety if relevant.
+
+        Tag rules:
+        - One @param line per parameter, in order, explaining its meaning and any constraints.
+        - @return only if the method does not return void; never for a constructor.
+        - @throws only for an exception that appears in the code as a 'throws' clause or a 'throw new' statement.
+          If neither appears, write no @throws line at all."""
+
+    @staticmethod
+    def java_required_tags(code: str) -> str:
+        """Spell out which Javadoc tags this declaration needs; a 7B model skips them otherwise."""
+        header = "REQUIRED TAGS FOR THIS COMPONENT:"
+        sep = "\n        "
+        if Writer.is_java_type_declaration(code):
+            params, _, _ = tag_requirements(code)
+            if params:
+                return header + sep + f"- Add one '@param <name> <description>' line for each record component: {', '.join(params)}."
+            return header + sep + "- Write no @param, @return or @throws tags."
+        params, needs_return, exceptions = tag_requirements(code)
+        lines = []
+        if params:
+            lines.append(f"- Add one '@param <name> <description>' line for each parameter, in this order: {', '.join(params)}.")
+        else:
+            lines.append("- It has NO parameters: write no @param lines.")
+        lines.append("- Add an '@return <description>' line." if needs_return else "- Write no @return line.")
+        if exceptions:
+            lines.append(f"- Add '@throws <Exception> <reason>' for each of: {', '.join(sorted(exceptions))}.")
+        else:
+            lines.append("- Write no @throws line.")
+        return header + sep + sep.join(lines)
+
+    def complete_java_tags(self, code: str, docstring: str) -> str:
+        """Ask for any @param/@return lines the model left out, in one short focused call.
+
+        Skipped tags are the 7B model's most common Javadoc gap and it ignores the
+        required-tags list, but it handles a narrow "write just these lines" request.
+        """
+        params, needs_return, _ = tag_requirements(code)
+        present = set(re.findall(r'^\s*\*?\s*@param\s+(\S+)', docstring, flags=re.M))
+        missing_params = [p for p in params if p not in present]
+        missing_return = needs_return and not re.search(r'^\s*\*?\s*@return\b', docstring, flags=re.M)
+        if not missing_params and not missing_return:
+            return docstring
+
+        wanted = [f"@param {p} <one-sentence description>" for p in missing_params]
+        if missing_return:
+            wanted.append("@return <one-sentence description of the returned value>")
+        wanted_text = "\n".join(wanted)
+        prompt = (
+            "Here is a Java declaration:\n\n"
+            f"{code}\n\n"
+            "Write ONLY the following Javadoc tag lines, one per line, replacing each <...> with a short, "
+            "specific description based on the code. No other text, no markdown.\n\n"
+            f"{wanted_text}"
+        )
+        try:
+            response = self.generate_response(messages=[self.llm.format_message("user", prompt)])
+        except Exception:
+            return docstring
+
+        keep = []
+        for line in response.splitlines():
+            line = line.strip().lstrip('*').strip()
+            match = re.match(r'@(param|return)\b\s*(\S*)', line)
+            if not match or '<one-sentence' in line or '<description' in line:
+                continue
+            if match.group(1) == 'param' and match.group(2) in missing_params:
+                keep.append(line)
+            elif match.group(1) == 'return' and missing_return:
+                keep.append(line)
+        if not keep:
+            return docstring
+        return docstring.rstrip() + "\n\n" + "\n".join(keep)
+
+    @staticmethod
+    def is_java_type_declaration(code: str) -> bool:
+        """Return True if Java source declares a class, interface, enum or record.
+
+        Looks at the declaration head (text before the first '{'), ignoring leading
+        annotations, so an annotated class such as @RestController is still detected.
+        """
+        head = code.split('{', 1)[0]
+        head = re.sub(r'@\w+(?:\.\w+)*(?:\([^)]*\))?', ' ', head)
+        match = re.search(r'(?<![\w.])(class|interface|enum|record)\s+[A-Za-z_]\w*', head)
+        return bool(match) and '(' not in head[:match.start()]
+
     def is_class_component(code: str) -> bool:
         """Determine if the given code component is a class definition.
         
@@ -136,6 +260,9 @@ class Writer(BaseAgent):
         Returns:
             str: The appropriate system prompt for the component type
         """
+        if self.language == "java":
+            is_type = Writer.is_java_type_declaration(code)
+            return self.java_class_prompt if is_type else self.java_method_prompt
         is_class = Writer.is_class_component(code)
         specific_prompt = self.class_prompt if is_class else self.function_prompt
         return specific_prompt
@@ -177,11 +304,15 @@ class Writer(BaseAgent):
             str: The generated docstring following the specified format
         """
         
+        java_rules = ""
+        if self.language == "java":
+            java_rules = f"{self.java_base_prompt}\n\n        {self.java_required_tags(focal_component)}\n\n        "
+
         task_description = f"""
         Available context:
         {context}
 
-        {self.get_custom_prompt(focal_component)}
+        {java_rules}{self.get_custom_prompt(focal_component)}
 
         Now, generate a high-quality docstring for the following Code Component based on the Available context:
         
@@ -192,7 +323,7 @@ class Writer(BaseAgent):
         Keep in mind:
         1. Generate docstring between XML tag: <DOCSTRING> and </DOCSTRING>
         2. First analysis the code component and then generate the docstring at the end based on the context.
-        3. Do not add triple quotes (\"\"\") to your generated docstring.
+        3. Do not add triple quotes (\"\"\") or comment markers to your generated docstring.
         4. Always double check if the generated docstring is within the XML tags: <DOCSTRING> and </DOCSTRING>. This is critical for parsing the docstring.
         """
         self.add_to_memory("user", task_description)
@@ -201,5 +332,8 @@ class Writer(BaseAgent):
         full_response = self.generate_response()
         
         # Extract and return just the docstring part
-        return self.extract_docstring(full_response)
+        docstring = self.extract_docstring(full_response)
+        if self.language == "java":
+            docstring = self.complete_java_tags(focal_component, docstring)
+        return docstring
     

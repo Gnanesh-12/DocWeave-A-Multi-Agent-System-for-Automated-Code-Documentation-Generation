@@ -1,4 +1,4 @@
-const TYPE_LABELS = { class: 'class', method: 'method', function: 'func' }
+const TYPE_LABELS = { class: 'class', method: 'method', function: 'func', constructor: 'ctor' }
 
 function groupByFile(nodes) {
   const groups = {}

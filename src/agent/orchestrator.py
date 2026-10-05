@@ -179,7 +179,7 @@ class Orchestrator(BaseAgent):
                 self.visualizer.update('searcher', "Searching for additional context...")
                 if self.test_mode != "context_print":
                     time.sleep(self.status_sleep_time)
-                search_results = self.searcher.process(reader_response, ast_node, ast_tree, dependency_graph, focal_node_dependency_path)
+                search_results = self.searcher.process(reader_response, ast_node, ast_tree, dependency_graph, focal_node_dependency_path, components_map)
                 self._update_context(search_results, token_consume_focal)
                 # Refresh reader's memory with new context
                 self.reader.refresh_memory([

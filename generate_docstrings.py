@@ -127,7 +127,8 @@ def generate_test_docstring(component: CodeComponent) -> str:
 
 
 def generate_docstring_for_component(component: CodeComponent, orchestrator: Optional[Orchestrator], test_mode: str = 'none',
-                                     dependency_graph: Optional[Dict[str, List[str]]] = None) -> str:
+                                     dependency_graph: Optional[Dict[str, List[str]]] = None,
+                                     components_map: Optional[Dict[str, CodeComponent]] = None) -> str:
     """
     Generate a docstring for a single component.
     
@@ -136,6 +137,8 @@ def generate_docstring_for_component(component: CodeComponent, orchestrator: Opt
         orchestrator: The orchestrator instance.
         test_mode: The test mode to use.
         dependency_graph: Optional dependency graph.
+        components_map: Optional mapping of component id to CodeComponent, used by the
+            Searcher to look up code when there is no Python AST (Java files).
         
     Returns:
         The generated docstring.
@@ -206,17 +209,9 @@ def generate_docstring_for_component(component: CodeComponent, orchestrator: Opt
         ast_tree = None
         ast_node = None
         
-        # Adapt prompts for Java temporarily
-        original_writer_base_prompt = orchestrator.writer.base_prompt
-        original_writer_system = next((m for m in orchestrator.writer.memory if m["role"] == "system"), None)
-        
-        java_prompt = original_writer_base_prompt.replace(
-            "Follow Google docstring format:\n           - Use consistent indentation\n           - Maintain clear section separation\n           - Keep related information grouped",
-            "Follow standard Javadoc format (/** ... */):\n           - Use @param, @return, @throws as appropriate\n           - Do not use Python terminology like self or __init__\n           - Use Java terminology"
-        )
-        orchestrator.writer.base_prompt = java_prompt
-        if original_writer_system:
-            original_writer_system["content"] = java_prompt
+    # Select language-specific Writer/Verifier prompts for this component
+    orchestrator.writer.language = "java" if is_java else "python"
+    orchestrator.verifier.language = "java" if is_java else "python"
     
     try:
         # Pass component.id as the focal_node_dependency_path
@@ -227,17 +222,16 @@ def generate_docstring_for_component(component: CodeComponent, orchestrator: Opt
             ast_tree=ast_tree,
             dependency_graph=dependency_graph,
             focal_node_dependency_path=component.id,
-            token_consume_focal=token_consume_focal  # Pass token count to orchestrator
+            token_consume_focal=token_consume_focal,  # Pass token count to orchestrator
+            components_map=components_map
         )
         return docstring
     except Exception as e:
         print(f"Error generating docstring for {component.id}: {str(e)}")
         return ""
     finally:
-        if is_java:
-            orchestrator.writer.base_prompt = original_writer_base_prompt
-            if original_writer_system:
-                original_writer_system["content"] = original_writer_base_prompt
+        orchestrator.writer.language = "python"
+        orchestrator.verifier.language = "python"
 
 
 def set_docstring_in_file(file_path: str, component: CodeComponent, docstring: str) -> bool:
@@ -594,11 +588,16 @@ def main():
         
         # Generate the docstring
         logger.info(f"Generating docstring for {component_id}")
-        docstring = generate_docstring_for_component(component, orchestrator, test_mode, dependency_graph)
+        docstring = generate_docstring_for_component(component, orchestrator, test_mode, dependency_graph, components)
         
         # Update the file with the new docstring
         file_path = component.file_path
-        if file_path.endswith('.java'):
+        if orchestrator and not (docstring or "").strip():
+            # Generation failed (the error was already printed). Don't write a
+            # placeholder or report success for a docstring that was never produced.
+            logger.error(f"No docstring generated for {component_id}; leaving file unchanged")
+            success = False
+        elif file_path.endswith('.java'):
             java_inserter = JavaInserter()
             success = java_inserter.insert_javadocs(file_path, [(component, docstring)])
         else:

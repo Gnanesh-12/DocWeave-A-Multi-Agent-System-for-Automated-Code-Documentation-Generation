@@ -65,7 +65,7 @@ public class TestFile {
         # Check formatting and locations
         self.assertIn("/**\n * Class doc\n */\npublic class TestFile", content)
         self.assertIn("    /**\n     * Constructor doc\n     */\n    public TestFile()", content)
-        self.assertIn("    /**\n     * Method doc\n     * @return void\n     */\n    @Override\n    public void myMethod()", content)
+        self.assertIn("    /**\n     * Method doc\n     */\n    @Override\n    public void myMethod()", content)
         self.assertIn("    /**\n     * Nested class doc\n     */\n    public class Nested", content)
         self.assertIn("        /**\n         * Nested method doc\n         */\n        public void nestedMethod()", content)
 

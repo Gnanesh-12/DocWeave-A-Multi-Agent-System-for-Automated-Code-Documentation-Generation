@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 from typing import Dict, List, Set, Optional, Any
 import tree_sitter
@@ -36,11 +37,39 @@ class JavaDependencyParser:
             self.parser = None
             
         self.modules: Set[str] = set()
-        
+        self._reset_state()
+
+        # Multi-module repos (e.g. initial/ and complete/ copies of one project) can
+        # declare the same fully qualified name twice. When that happens the repo is
+        # re-parsed with each component ID prefixed by its module directory.
+        self._prefix_modules = False
+        self._id_collision = False
+
+    def _reset_state(self):
+        self.components = {}
+        self.modules = set()
         # Helper structures for resolving dependencies
         self.file_package: Dict[str, str] = {}
+        self.file_module: Dict[str, str] = {}
         self.file_imports: Dict[str, Dict[str, str]] = {}
-        self.project_classes: Dict[str, str] = {} # unqualified_name -> fully_qualified_id
+        self.project_classes: Dict[str, Dict[str, str]] = {}  # unqualified_name -> {module: component_id}
+
+    def _module_for(self, relative_path: str) -> str:
+        """Module directory (path before 'src') as a dot-free ID prefix, or '' when not prefixing."""
+        if not self._prefix_modules:
+            return ""
+        parts = relative_path.replace("\\", "/").split("/")
+        module_parts = parts[:parts.index("src")] if "src" in parts else parts[:-1]
+        return re.sub(r'[^A-Za-z0-9-]+', '-', "/".join(module_parts)).strip('-')
+
+    def _qualify(self, module: str, fqn: str) -> str:
+        return f"{module}.{fqn}" if module else fqn
+
+    def _register(self, comp_id: str, component: CodeComponent):
+        existing = self.components.get(comp_id)
+        if existing is not None and existing.file_path != component.file_path:
+            self._id_collision = True
+        self.components[comp_id] = component
 
     def parse_repository(self) -> Dict[str, CodeComponent]:
         if not self.parser:
@@ -48,7 +77,24 @@ class JavaDependencyParser:
             return {}
             
         logger.info(f"Parsing Java repository at {self.repo_path}")
+
+        self._scan_files()
+        if self._id_collision and not self._prefix_modules:
+            logger.info("Duplicate Java component IDs across modules; re-parsing with module prefixes")
+            self._prefix_modules = True
+            self._reset_state()
+            self._scan_files()
+
+        # Pass 2: Resolve dependencies using the collected components and imports
+        self._resolve_dependencies()
         
+        # Pass 3: Classes depend on their methods
+        self._add_class_method_dependencies()
+        
+        logger.info(f"Found {len(self.components)} Java code components")
+        return self.components
+
+    def _scan_files(self):
         # Pass 1: Collect files, packages, imports, and component definitions
         for root, _, files in os.walk(self.repo_path):
             # Exclude common build directories
@@ -60,15 +106,6 @@ class JavaDependencyParser:
                     file_path = os.path.join(root, file)
                     relative_path = os.path.relpath(file_path, self.repo_path)
                     self._parse_file(file_path, relative_path)
-                    
-        # Pass 2: Resolve dependencies using the collected components and imports
-        self._resolve_dependencies()
-        
-        # Pass 3: Classes depend on their methods
-        self._add_class_method_dependencies()
-        
-        logger.info(f"Found {len(self.components)} Java code components")
-        return self.components
 
     def _parse_file(self, file_path: str, relative_path: str):
         try:
@@ -97,9 +134,12 @@ class JavaDependencyParser:
             self.file_imports[file_path] = imports
             if package_name:
                 self.modules.add(package_name)
+            module = self._module_for(relative_path)
+            self.file_module[file_path] = module
             
             # Extract components recursively
-            self._collect_components(tree.root_node, file_path, relative_path, package_name, source, source_bytes)
+            self._collect_components(tree.root_node, file_path, relative_path,
+                                     self._qualify(module, package_name), source, source_bytes)
             
         except Exception as e:
             logger.warning(f"Error parsing {file_path}: {e}")
@@ -161,8 +201,8 @@ class JavaDependencyParser:
                     docstring=javadoc
                 )
                 
-                self.components[comp_id] = component
-                self.project_classes[name] = comp_id
+                self._register(comp_id, component)
+                self.project_classes.setdefault(name, {})[self.file_module.get(file_path, "")] = comp_id
                 
                 # Nested traversal
                 body_node = next((n for n in child.children if n.type in ('class_body', 'interface_body', 'enum_body', 'record_body')), None)
@@ -201,7 +241,7 @@ class JavaDependencyParser:
                     docstring=javadoc
                 )
                 
-                self.components[comp_id] = component
+                self._register(comp_id, component)
                 
             else:
                 # Traverse further down for other nodes, just in case (e.g. nested blocks)
@@ -238,6 +278,7 @@ class JavaDependencyParser:
                 
             file_path = component.file_path
             pkg = self.file_package.get(file_path, "")
+            mod = self.file_module.get(file_path, "")
             imports = self.file_imports.get(file_path, {})
             
             for ref in raw_refs:
@@ -246,13 +287,13 @@ class JavaDependencyParser:
                     
                 # 1. Check if imported
                 if ref in imports:
-                    full_ref = imports[ref]
+                    full_ref = self._qualify(mod, imports[ref])
                     if full_ref in self.components:
                         component.depends_on.add(full_ref)
                     continue
                     
                 # 2. Check if in the same package
-                same_pkg_ref = f"{pkg}.{ref}" if pkg else ref
+                same_pkg_ref = self._qualify(mod, f"{pkg}.{ref}" if pkg else ref)
                 if same_pkg_ref in self.components:
                     component.depends_on.add(same_pkg_ref)
                     continue
@@ -268,15 +309,16 @@ class JavaDependencyParser:
                         
                 # 4. Check if project class
                 if ref in self.project_classes:
-                    component.depends_on.add(self.project_classes[ref])
+                    candidates = self.project_classes[ref]
+                    component.depends_on.add(candidates.get(mod) or next(iter(candidates.values())))
                     continue
                     
                 # 5. Scoped identifiers
                 if '.' in ref:
-                    if ref in self.components:
-                        component.depends_on.add(ref)
-                    elif f"{pkg}.{ref}" in self.components:
-                        component.depends_on.add(f"{pkg}.{ref}")
+                    if self._qualify(mod, ref) in self.components:
+                        component.depends_on.add(self._qualify(mod, ref))
+                    elif self._qualify(mod, f"{pkg}.{ref}") in self.components:
+                        component.depends_on.add(self._qualify(mod, f"{pkg}.{ref}"))
             
             # Filter out self-dependencies
             component.depends_on.discard(comp_id)

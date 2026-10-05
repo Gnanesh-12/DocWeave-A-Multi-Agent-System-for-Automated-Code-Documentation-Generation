@@ -51,7 +51,8 @@ class Searcher(BaseAgent):
         ast_node: ast.AST,
         ast_tree: ast.AST,
         dependency_graph: Dict[str, List[str]],
-        focal_node_dependency_path: str
+        focal_node_dependency_path: str,
+        components_map: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Process the reader's response and gather the requested information.
         
@@ -62,6 +63,8 @@ class Searcher(BaseAgent):
             ast_tree: AST tree for the entire file
             dependency_graph: Dictionary mapping component paths to their dependencies
             focal_node_dependency_path: Dependency path of the focal component
+            components_map: Optional mapping of component id to CodeComponent. Used to
+                           look up source code when no Python AST is available (e.g. Java)
                         
         Returns:
             A dictionary containing the gathered information, structured as:
@@ -89,7 +92,8 @@ class Searcher(BaseAgent):
             ast_tree,
             focal_node_dependency_path,
             dependency_graph,
-            parsed_request
+            parsed_request,
+            components_map
         )
 
         # Gather external information using Perplexity API
@@ -167,7 +171,8 @@ class Searcher(BaseAgent):
         ast_tree: ast.AST,
         focal_dependency_path: str,
         dependency_graph: Dict[str, List[str]],
-        parsed_request: ParsedInfoRequest
+        parsed_request: ParsedInfoRequest,
+        components_map: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Gather internal information using the dependency graph and AST analyzer.
         
@@ -198,6 +203,12 @@ class Searcher(BaseAgent):
             'called_by': []
         }
         
+        # No Python AST (e.g. Java files): look code up from the parsed components instead
+        if ast_tree is None:
+            return self._gather_internal_info_from_components(
+                focal_dependency_path, dependency_graph, parsed_request, components_map
+            )
+
         # Get dependencies of the focal component from the dependency graph
         component_dependencies = dependency_graph.get(focal_dependency_path, [])
         
@@ -307,6 +318,58 @@ class Searcher(BaseAgent):
             else:
                 result['called_by'].append("This component is never called by any other component.")
         
+        return result
+
+    def _gather_internal_info_from_components(
+        self,
+        focal_dependency_path: str,
+        dependency_graph: Dict[str, List[str]],
+        parsed_request: ParsedInfoRequest,
+        components_map: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Gather internal info from parsed components when there is no Python AST.
+
+        Same output shape as _gather_internal_info. Returns empty results if no
+        components_map is available.
+        """
+        result = {
+            'calls': {'class': {}, 'function': {}, 'method': {}},
+            'called_by': []
+        }
+        if not components_map:
+            return result
+
+        kind_of = {
+            'class': 'class', 'interface': 'class', 'enum': 'class', 'record': 'class',
+            'method': 'method', 'constructor': 'method', 'function': 'function'
+        }
+        requests = parsed_request.internal_requests['call']
+
+        for dep_id in dependency_graph.get(focal_dependency_path, []):
+            dep = components_map.get(dep_id)
+            kind = kind_of.get(getattr(dep, 'component_type', None))
+            if not dep or not dep.source_code or not kind:
+                continue
+            simple = dep_id.split('.')[-1]
+            base = simple.split('_')[0]  # strip Java overload suffix, e.g. greeting_String
+            for requested in requests[kind]:
+                name = requested.split('.')[-1]
+                if name in (simple, base) or requested in dep_id:
+                    result['calls'][kind][requested] = dep.source_code
+                    break
+
+        if parsed_request.internal_requests['call_by']:
+            for comp_id, comp in components_map.items():
+                if comp_id == focal_dependency_path or not comp.source_code:
+                    continue
+                # A class depends on its own methods; that is containment, not a call
+                if focal_dependency_path.startswith(comp_id + '.'):
+                    continue
+                if focal_dependency_path in comp.depends_on:
+                    result['called_by'].append(comp.source_code)
+            if not result['called_by']:
+                result['called_by'].append("This component is never called by any other component.")
+
         return result
 
     def _gather_external_info(self, queries: List[str]) -> Dict[str, str]:

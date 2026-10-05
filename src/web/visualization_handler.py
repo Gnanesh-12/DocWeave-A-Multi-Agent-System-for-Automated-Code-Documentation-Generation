@@ -203,6 +203,18 @@ def get_dependency_graph(repo_path: str) -> Dict[str, Any]:
     except Exception as e:
         return {'status': 'error', 'message': f'Failed to parse dependency graph: {str(e)}'}
 
+    # Java components (tree-sitter). Optional: skip quietly if tree-sitter is not installed.
+    try:
+        from src.dependency_analyzer.java_parser import JavaDependencyParser
+        java_parser = JavaDependencyParser(repo_path)
+        java_parser.parse_repository()
+        for comp_id, comp in java_parser.components.items():
+            components[comp_id] = comp.to_dict()
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"Warning: Java dependency parsing failed: {e}")
+
     nodes = []
     edges = []
     for comp_id, comp in components.items():

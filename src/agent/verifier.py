@@ -14,6 +14,10 @@ class Verifier(BaseAgent):
             config_path: Optional path to the configuration file
         """
         super().__init__("Verifier", config_path=config_path)
+
+        # Language of the component being checked: "python" or "java".
+        # Set per component by generate_docstrings.py.
+        self.language = "python"
         self.system_prompt = """You are a Verifier agent responsible for ensuring the quality of generated docstrings. 
         Your role is to evaluate docstrings from the perspective of a first-time user encountering the code component.
         
@@ -77,11 +81,22 @@ class Verifier(BaseAgent):
         Returns:
             List of VerificationFeedback objects for each aspect that needs improvement
         """
+        java_rules = ""
+        if self.language == "java":
+            java_rules = """This component is JAVA, and the docstring is the body of a Javadoc comment. Also check:
+        - Only standard Javadoc tags are used (@param, @return, @throws). Flag invented tags such as @summary, @description, @when, @where, @how.
+        - Type-level docs (class, interface, enum, record) have no @return or @throws; a record documents its components with @param.
+        - Method docs have one @param per parameter, @return only for non-void methods, and @throws only for exceptions the code actually declares or throws.
+        - No Python conventions (Args:, Returns:, Raises:, self, __init__) and no markdown code fences.
+        - No invented parameters, return values or exceptions.
+
+        """
+
         task_description = f"""
         Context Used:
         {context if context else 'No context was used.'}
 
-        Verify the quality of the following docstring for the following Code Component:
+        {java_rules}Verify the quality of the following docstring for the following Code Component:
         
         Code Component:
         {focal_component}
