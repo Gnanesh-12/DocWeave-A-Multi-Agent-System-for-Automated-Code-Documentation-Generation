@@ -124,19 +124,3 @@ python src/web_eval/app.py --host 0.0.0.0 --port 5001
 ```
 Access the evaluation UI at `http://localhost:5001`.
 
----
-
-## Citation
-
-If you use DocWeave in your research, please cite the [paper](https://arxiv.org/abs/2504.08725):
-
-```bibtex
-@misc{yang2025docweave,
-      title={DocWeave: A Multi-Agent System for Automated Code Documentation Generation}, 
-      author={Dayu Yang and Antoine Simoulin and Xin Qian and Xiaoyi Liu and Yuwei Cao and Zhaopu Teng and Grey Yang},
-      year={2025},
-      eprint={2504.08725},
-      archivePrefix={arXiv},
-      primaryClass={cs.SE}
-}
-```
