@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { FileText, Folder, Check, X, AlertTriangle, Circle, ArrowDownToLine, Copy } from 'lucide-react'
+import { normalizeLevel } from '../logUtils.js'
 
 const AGENTS = ['Reader', 'Searcher', 'Writer', 'Verifier']
 
@@ -74,13 +75,40 @@ function LogPanel({ logs }) {
     else if (!isAtBottom && autoScroll) setAutoScroll(false)
   }
 
-  const filteredLogs = logs.filter(l => {
-    if (filter === 'All') return true
-    if (filter === 'Info') return l.level === 'INFO'
-    if (filter === 'Warnings') return l.level === 'WARN' || l.level === 'WARNING'
-    if (filter === 'Errors') return l.level === 'ERROR'
+  const [copied, setCopied] = useState(false)
+
+  // Keep each entry's original line number so numbering stays stable while filtering.
+  const entries = logs.map((log, idx) => ({ log, idx, level: normalizeLevel(log.level) }))
+  const counts = {
+    All: entries.length,
+    Info: entries.filter(e => e.level === 'INFO' || e.level === 'DEBUG').length,
+    Warnings: entries.filter(e => e.level === 'WARN').length,
+    Errors: entries.filter(e => e.level === 'ERROR').length,
+  }
+  const filteredLogs = entries.filter(e => {
+    if (filter === 'Info') return e.level === 'INFO' || e.level === 'DEBUG'
+    if (filter === 'Warnings') return e.level === 'WARN'
+    if (filter === 'Errors') return e.level === 'ERROR'
     return true
   })
+
+  const copyLogs = async () => {
+    const text = filteredLogs.map(e => `${e.log.time || ''} ${e.level} ${e.log.message || e.log.text || ''}`).join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // Clipboard can be blocked (non-secure context); nothing useful to do.
+    }
+  }
+
+  const emptyText = {
+    All: 'Waiting for output...',
+    Info: 'No info messages yet.',
+    Warnings: 'No warnings so far.',
+    Errors: 'No errors so far.',
+  }[filter]
 
   return (
     <div className="log-panel" style={{ height: `${height}px` }}>
@@ -102,11 +130,15 @@ function LogPanel({ logs }) {
         }}
       />
       <div className="log-panel-header">
-        <div className="segmented-control">
-          <button aria-selected={filter === 'All'} onClick={() => setFilter('All')}>All</button>
-          <button aria-selected={filter === 'Info'} onClick={() => setFilter('Info')}>Info</button>
-          <button aria-selected={filter === 'Warnings'} onClick={() => setFilter('Warnings')}>Warnings</button>
-          <button aria-selected={filter === 'Errors'} onClick={() => setFilter('Errors')}>Errors</button>
+        <div className="segmented-control" role="tablist">
+          {['All', 'Info', 'Warnings', 'Errors'].map(tab => (
+            <button key={tab} role="tab" aria-selected={filter === tab} onClick={() => setFilter(tab)}>
+              {tab}
+              <span className={`tab-count ${tab === 'Errors' && counts[tab] > 0 ? 'has-errors' : ''} ${tab === 'Warnings' && counts[tab] > 0 ? 'has-warnings' : ''}`}>
+                {counts[tab]}
+              </span>
+            </button>
+          ))}
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           {!autoScroll && (
@@ -117,53 +149,70 @@ function LogPanel({ logs }) {
               Jump to latest
             </button>
           )}
-          <button className="icon-btn" aria-label="Copy logs">
-            <Copy size={14} />
+          <button className="icon-btn" aria-label="Copy logs" title={copied ? 'Copied' : 'Copy shown logs'} onClick={copyLogs}>
+            {copied ? <Check size={14} /> : <Copy size={14} />}
           </button>
         </div>
       </div>
       <div className="log-panel-content" ref={containerRef} onScroll={handleScroll}>
-        {filteredLogs.map((log, i) => {
-          let lvl = (log.level || 'INFO').toUpperCase()
-          if (lvl === 'WARNING') lvl = 'WARN'
-          const text = log.message || log.text || ''
-          return (
-            <div key={i} className="log-line">
-              <div className="log-line-num">{i + 1}</div>
-              <div className="log-line-time">{log.time}</div>
-              <div className={`log-line-lvl ${lvl.toLowerCase()}`}>{lvl}</div>
-              <div className="log-line-msg">{text}</div>
-            </div>
-          )
-        })}
+        {filteredLogs.length === 0 && (
+          <div style={{ color: 'var(--text-muted)', padding: '12px 16px' }}>{emptyText}</div>
+        )}
+        {filteredLogs.map(({ log, idx, level }) => (
+          <div key={idx} className="log-line">
+            <div className="log-line-num">{idx + 1}</div>
+            <div className="log-line-time">{log.time}</div>
+            <div className={`log-line-lvl ${level.toLowerCase()}`}>{level}</div>
+            <div className="log-line-msg">{log.message || log.text || ''}</div>
+          </div>
+        ))}
       </div>
     </div>
   )
 }
 
+// Compare paths regardless of case or slash direction: file names arrive as Windows paths
+// (src\main\...) but people type src/main.
+const normPath = (s) => String(s || '').replace(/\\/g, '/').toLowerCase()
+
 function TreeSidebar({ filesList, activeFile }) {
   const [filter, setFilter] = useState('')
 
-  const displayedFiles = filesList.filter(f => {
-    if (!filter) return true
-    return (f.file || f.name || '').toLowerCase().includes(filter.toLowerCase())
-  })
+  const query = normPath(filter.trim())
+  const displayedFiles = filesList.filter(f => !query || normPath(f.file || f.name).includes(query))
+  const active = normPath(activeFile)
 
   return (
     <div className="tree-sidebar">
       <div className="tree-filter">
-        <input 
-          type="text" 
-          placeholder="Filter files..." 
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
+        <div className="tree-filter-box">
+          <input
+            type="text"
+            placeholder="Filter files..."
+            aria-label="Filter files"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape') setFilter('') }}
+          />
+          {filter && (
+            <button className="tree-filter-clear" aria-label="Clear filter" onClick={() => setFilter('')}>
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        {query && (
+          <div className="tree-filter-count">{displayedFiles.length} of {filesList.length} files</div>
+        )}
       </div>
       <div className="tree-nodes">
         {displayedFiles.map(f => {
           const name = f.file || f.name || 'Unknown'
-          const isActive = name === activeFile
-          
+          const normName = normPath(name)
+          const isActive = !!active && (normName === active || normName.endsWith('/' + active) || active.endsWith('/' + normName))
+          const slash = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'))
+          const base = name.slice(slash + 1)
+          const dir = slash >= 0 ? name.slice(0, slash) : ''
+
           let icon = <Circle size={14} className="status-mark pending" />
           if (f.status === 'completed' || f.status === 'complete') icon = <Check size={14} className="status-mark done" />
           else if (f.status === 'processing' || f.status === 'in_progress') icon = <Circle size={14} fill="currentColor" className="status-mark processing" />
@@ -171,19 +220,26 @@ function TreeSidebar({ filesList, activeFile }) {
           else if (f.status === 'partial') icon = <AlertTriangle size={14} className="status-mark warning" />
 
           return (
-            <div key={name} className={`tree-node ${isActive ? 'active' : ''}`}>
+            <div key={name} className={`tree-node ${isActive ? 'active' : ''}`} title={name}>
               {icon}
-              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+              <div className="tree-node-text">
+                <div className="tree-node-name">{base}</div>
+                {dir && <div className="tree-node-dir">{dir}</div>}
+              </div>
             </div>
           )
         })}
-        {displayedFiles.length === 0 && <div style={{ color: 'var(--text-muted)', padding: '8px' }}>No files found.</div>}
+        {displayedFiles.length === 0 && (
+          <div style={{ color: 'var(--text-muted)', padding: '8px' }}>
+            {query ? `No files match "${filter.trim()}".` : 'Waiting for files...'}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-export default function DashboardView({ agentStatus, progress, repoStructure, logs, status, onStop }) {
+export default function DashboardView({ agentStatus, progress, repoStructure, logs, status, onStop, onReview, onReset }) {
   const total = progress.total_components || 0
   const processed = progress.processed_components || 0
   const perc = total > 0 ? (processed / total) * 100 : 0
@@ -204,13 +260,27 @@ export default function DashboardView({ agentStatus, progress, repoStructure, lo
   const warnings = filesList.filter(f => f.status === 'partial').length
   const failures = filesList.filter(f => f.status === 'failed').length
 
-  const isCompleted = status === 'complete' || (total > 0 && processed === total)
+  // The dashboard stays on screen once generation ends, so the progress, per-file status
+  // and logs can still be inspected (especially after a failure). Only the banner changes.
+  const isComplete = status === 'complete'
+  const isStopped = status === 'cancelled' || status === 'error'
+  const isFinished = isComplete || isStopped
 
   // Find most recent meaningful message
   const recentMsg = logs.slice().reverse().find(l => l.level === 'INFO' && l.message && !l.message.includes('Status update'))?.message
 
-  if (isCompleted) {
-    return null // Handled in App.jsx to render completion strip
+  let headline = `${processed} / ${total} components`
+  if (isComplete) headline = `Documented ${processed || total} components`
+  else if (isStopped) headline = `Stopped at ${processed} / ${total} components`
+
+  let workName = agentStatus.current_component || 'Waiting for component...'
+  let workFile = agentStatus.current_file || ''
+  if (isComplete) {
+    workName = 'All components documented'
+    workFile = 'Open the review to see exactly what changed in each file.'
+  } else if (isStopped) {
+    workName = 'Generation stopped'
+    workFile = 'Progress and logs are kept below. Start over to try again.'
   }
 
   return (
@@ -218,7 +288,7 @@ export default function DashboardView({ agentStatus, progress, repoStructure, lo
       <div className="status-strip">
         <div className="status-strip-inner">
           <div className="status-strip-main">
-            <div className="status-large-num">{processed} / {total} components</div>
+            <div className="status-large-num">{headline}</div>
             <div className="status-stats">
               {warnings > 0 && (
                 <div className="stat">
@@ -234,35 +304,43 @@ export default function DashboardView({ agentStatus, progress, repoStructure, lo
               )}
             </div>
           </div>
-          {onStop && status === 'running' && (
-            <button className="danger" onClick={onStop}>Stop</button>
-          )}
+          <div style={{ display: 'flex', gap: '12px' }}>
+            {onStop && !isFinished && (
+              <button className="danger" onClick={onStop}>Stop</button>
+            )}
+            {isComplete && onReview && (
+              <button className="primary" onClick={onReview}>Review changes</button>
+            )}
+            {isFinished && onReset && (
+              <button className="secondary" onClick={onReset}>Start over</button>
+            )}
+          </div>
         </div>
         <div className="status-strip-inner">
           <div className="progress-bar-thin">
-            <div className="progress-bar-thin-fill" style={{ width: `${perc}%` }}></div>
+            <div className="progress-bar-thin-fill" style={{ width: `${isComplete ? 100 : perc}%` }}></div>
           </div>
         </div>
       </div>
 
       <div className="dashboard-layout">
-        <TreeSidebar filesList={filesList} activeFile={agentStatus.current_file} />
-        
+        <TreeSidebar filesList={filesList} activeFile={isFinished ? null : agentStatus.current_file} />
+
         <div className="dashboard-center">
           <div className="current-work-header">
             <div className="current-work-name">
-              {agentStatus.current_component || 'Waiting for component...'}
-              {agentStatus.current_component && <span className="chip">Component</span>}
+              {workName}
+              {!isFinished && agentStatus.current_component && <span className="chip">Component</span>}
             </div>
             <div className="current-work-file">
-              {agentStatus.current_file || ''}
+              {workFile}
             </div>
           </div>
 
-          <AgentTrack 
-            activeAgent={agentStatus.active_agent} 
-            lastMessage={recentMsg} 
-            currentDraft={agentStatus.current_draft} 
+          <AgentTrack
+            activeAgent={isComplete ? 'complete' : isStopped ? null : agentStatus.active_agent}
+            lastMessage={recentMsg}
+            currentDraft={isFinished ? null : agentStatus.current_draft}
           />
         </div>
       </div>

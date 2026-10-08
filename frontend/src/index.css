@@ -970,3 +970,51 @@ pre {
   gap: 8px;
   z-index: 10;
 }
+
+/* ---------- Dashboard filters: files + logs ---------- */
+.tree-filter-box { position: relative; }
+.tree-filter-box input { width: 100%; padding-right: 30px; }
+button.tree-filter-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+}
+button.tree-filter-clear:hover:not(:disabled) { color: var(--text); background: transparent; }
+.tree-filter-count { margin-top: 6px; font-size: 0.75rem; color: var(--text-muted); }
+.tree-node { align-items: flex-start; }
+.tree-node .status-mark { margin-top: 3px; flex-shrink: 0; }
+.tree-node-text { min-width: 0; flex: 1; }
+.tree-node-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-node-dir {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;           /* keep the end of a long folder path visible */
+  text-align: left;
+  font-size: 0.6875rem;
+  color: var(--text-faint);
+}
+.tab-count {
+  margin-left: 6px;
+  padding: 0 5px;
+  min-width: 18px;
+  border-radius: 9px;
+  font-size: 0.6875rem;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  background: var(--border);
+  color: var(--text-muted);
+  display: inline-block;
+}
+.tab-count.has-warnings { background: var(--warn); color: #fff; }
+.tab-count.has-errors { background: var(--err); color: #fff; }

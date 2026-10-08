@@ -143,14 +143,14 @@ def get_repo_structure(repo_path: str) -> Dict[str, Any]:
                 continue
                 
             # Skip __pycache__ and other common non-Python directories
-            if item in ['__pycache__', 'venv', 'env', '.git', '.idea', '.vscode']:
+            if item in ['__pycache__', 'venv', 'env', '.git', '.idea', '.vscode', 'target', 'build', 'node_modules']:
                 continue
                 
             if os.path.isdir(item_path):
                 child = {'name': item, 'path': item_path, 'type': 'dir', 'children': []}
                 build_tree(item_path, child)
                 node['children'].append(child)
-            elif item.endswith('.py'):
+            elif item.endswith(('.py', '.java')):
                 node['children'].append({
                     'name': item,
                     'path': item_path,

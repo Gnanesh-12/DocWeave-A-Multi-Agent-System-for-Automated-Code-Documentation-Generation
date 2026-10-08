@@ -4,7 +4,8 @@ import ConfigView from './components/ConfigView.jsx'
 import DashboardView from './components/DashboardView.jsx'
 import ResultsView from './components/ResultsView.jsx'
 import { cloneRepo, getModels, startOllama, stopGeneration, getResults, getStatus, getSocket } from './api.js'
-import { AlertCircle, Copy, RotateCcw } from 'lucide-react'
+import { AlertCircle, Copy } from 'lucide-react'
+import { makeLogEntry, normalizeLevel, stripAnsi } from './logUtils.js'
 
 const MAX_LOG_LINES = 5000
 
@@ -68,10 +69,11 @@ export default function App() {
       if (data.repo_structure) setRepoStructure(data.repo_structure)
     }
     const onLogMessage = (data) => {
-      setLogs((prev) => [...prev, { message: data.message, level: data.level, time: new Date().toLocaleTimeString('en-US', { hour12: false }) }].slice(-MAX_LOG_LINES))
+      const entry = { message: stripAnsi(data.message || ''), level: normalizeLevel(data.level), time: new Date().toLocaleTimeString('en-US', { hour12: false }) }
+      setLogs((prev) => [...prev, entry].slice(-MAX_LOG_LINES))
     }
     const onLogLine = (line) => {
-      setLogs((prev) => [...prev, { message: line, level: 'INFO', time: new Date().toLocaleTimeString('en-US', { hour12: false }) }].slice(-MAX_LOG_LINES))
+      setLogs((prev) => [...prev, makeLogEntry(line, prev.length ? prev[prev.length - 1].level : 'INFO')].slice(-MAX_LOG_LINES))
     }
     const onComplete = async () => {
       const result = await getResults()
@@ -190,41 +192,18 @@ export default function App() {
       )}
 
       {phase === 'running' && (
-        <>
-          {appStatus === 'complete' ? (
-            <div className="status-strip">
-              <div className="status-strip-inner" style={{ alignItems: 'center' }}>
-                <div style={{ fontSize: '1rem', color: 'var(--text)' }}>
-                  Documented {progress.processed_components || 0} components.
-                </div>
-                <div style={{ display: 'flex', gap: '16px' }}>
-                  <button className="primary" onClick={() => setPhase('results')}>Review changes</button>
-                  <button className="secondary" onClick={handleReset}>Start over</button>
-                </div>
-              </div>
-            </div>
-          ) : (appStatus === 'cancelled' || appStatus === 'error') ? (
-            <div className="status-strip">
-              <div className="status-strip-inner">
-                <div style={{ fontSize: '1rem', color: 'var(--text)' }}>
-                  Process stopped.
-                </div>
-                <button className="primary" onClick={handleReset}>
-                  <RotateCcw size={14} /> Start over
-                </button>
-              </div>
-            </div>
-          ) : (
-            <DashboardView
-              agentStatus={agentStatus}
-              progress={progress}
-              repoStructure={repoStructure}
-              logs={logs}
-              status={appStatus}
-              onStop={handleStop}
-            />
-          )}
-        </>
+        // The dashboard stays visible when generation finishes or stops; it shows the
+        // Review / Start over actions itself instead of being replaced by a bare strip.
+        <DashboardView
+          agentStatus={agentStatus}
+          progress={progress}
+          repoStructure={repoStructure}
+          logs={logs}
+          status={appStatus}
+          onStop={handleStop}
+          onReview={() => setPhase('results')}
+          onReset={handleReset}
+        />
       )}
 
       {phase === 'results' && (

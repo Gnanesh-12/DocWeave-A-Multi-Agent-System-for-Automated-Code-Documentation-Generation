@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Download, AlertTriangle, FileCode2 } from 'lucide-react'
+import { Download, AlertTriangle, FileCode2, Copy } from 'lucide-react'
 import DependencyGraph from './DependencyGraph.jsx'
 
 function classifyLine(line) {
