@@ -18,6 +18,20 @@ from typing import Optional, Dict, Any
 
 from . import visualization_handler
 
+
+def _generation_python() -> str:
+    """Interpreter for the generation subprocess.
+
+    Prefer the project's own virtualenv so generation always has its dependencies
+    (tree-sitter, gitpython, ...), even if the web server itself was started from a
+    terminal where the venv was not activated.
+    """
+    root = Path(__file__).resolve().parent.parent.parent
+    for candidate in (root / "venv" / "Scripts" / "python.exe", root / "venv" / "bin" / "python"):
+        if candidate.exists():
+            return str(candidate)
+    return sys.executable
+
 # Global variables to track the process
 process = None
 should_stop = False
@@ -400,7 +414,7 @@ def start_generation_process(socketio, repo_path: str, config_path: str, app_sta
         try:
             with open(log_path, 'w') as log_file:
                 process = subprocess.Popen(
-                    [sys.executable, str(script_path), 
+                    [_generation_python(), str(script_path),
                      '--repo-path', repo_path, 
                      '--config-path', config_path,
                      '--enable-web'],  # Enable web integration
