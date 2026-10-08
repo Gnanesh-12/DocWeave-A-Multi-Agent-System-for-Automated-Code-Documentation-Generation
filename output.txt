@@ -1,0 +1,47 @@
+(venv) PS D:\SEM7\NLP\DocAgent-A-Multi-Agent-System-for-Automated-Code-Documentation-Generation> python compare_models.py
+
+Generators : qwen2.5-coder:7b, qwen3:8b, qwen2.5-coder:14b
+Not installed (skipped; use --pull): deepseek-coder-v2:16b, phi4:14b, llama3.1:8b
+Judge      : llama3.2:latest (fallback for its own output: qwen3:8b)
+Repos      : gs-rest-service, sampleproject
+
+[generate] qwen2.5-coder:7b on gs-rest-service ...
+           ok in 223.9s, 8/8 components, 7 format warnings
+
+[generate] qwen2.5-coder:7b on sampleproject ...
+           ok in 248.4s, 7/7 components, 6 format warnings
+
+[generate] qwen3:8b on gs-rest-service ...
+           ok in 768.2s, 8/8 components, 4 format warnings
+
+[generate] qwen3:8b on sampleproject ...
+           ok in 721.6s, 7/7 components, 0 format warnings
+
+[generate] qwen2.5-coder:14b on gs-rest-service ...
+           ok in 1316.7s, 8/8 components, 6 format warnings
+
+[generate] qwen2.5-coder:14b on sampleproject ...
+           ok in 1186.4s, 7/7 components, 3 format warnings
+
+[judge] llama3.2:latest judging qwen2.5-coder:7b|gs-rest-service ...
+
+[judge] llama3.2:latest judging qwen2.5-coder:7b|sampleproject ...
+
+[judge] llama3.2:latest judging qwen3:8b|gs-rest-service ...
+
+[judge] llama3.2:latest judging qwen3:8b|sampleproject ...
+
+[judge] llama3.2:latest judging qwen2.5-coder:14b|gs-rest-service ...
+
+[judge] llama3.2:latest judging qwen2.5-coder:14b|sampleproject ...
+
+| Model | Components done | Sec/component | Format warnings | Completeness | Truthfulness | Hallucinated | Judge | Status |
+|---|---|---|---|---|---|---|---|---|
+| qwen2.5-coder:7b | 15/15 | 31s | 13 | 100% | 60% | 1/15 | llama3.2:latest | ok |
+| qwen3:8b | 15/15 | 99s | 4 | 100% | 57% | 1/15 | llama3.2:latest | ok |
+| qwen2.5-coder:14b | 15/15 | 167s | 9 | 100% | 57% | 2/15 | llama3.2:latest | ok |
+
+`*` = this model was also the primary judge, so a different model judged its output; judges differ, so compare truthfulness across rows with care.
+Completeness = share of required sections/tags present. Truthfulness = (TRUTHFUL + 0.5 x PARTIAL) / judged.
+
+Full results: D:\SEM7\NLP\DocAgent-A-Multi-Agent-System-for-Automated-Code-Documentation-Generation\eval_results\20261008_204640
