@@ -2,7 +2,7 @@
   "helper.HelperClass": {
     "id": "helper.HelperClass",
     "component_type": "class",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/helper.py",
     "relative_path": "helper.py",
     "depends_on": [
       "helper.HelperClass.get_result",
@@ -18,7 +18,7 @@
   "helper.HelperClass.__init__": {
     "id": "helper.HelperClass.__init__",
     "component_type": "method",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/helper.py",
     "relative_path": "helper.py",
     "depends_on": [],
     "start_line": 3,
@@ -29,7 +29,7 @@
   "helper.HelperClass.process_data": {
     "id": "helper.HelperClass.process_data",
     "component_type": "method",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/helper.py",
     "relative_path": "helper.py",
     "depends_on": [
       "helper.DataProcessor"
@@ -42,7 +42,7 @@
   "helper.HelperClass._internal_process": {
     "id": "helper.HelperClass._internal_process",
     "component_type": "method",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/helper.py",
     "relative_path": "helper.py",
     "depends_on": [],
     "start_line": 10,
@@ -53,7 +53,7 @@
   "helper.HelperClass.get_result": {
     "id": "helper.HelperClass.get_result",
     "component_type": "method",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/helper.py",
     "relative_path": "helper.py",
     "depends_on": [],
     "start_line": 13,
@@ -64,7 +64,7 @@
   "helper.DataProcessor": {
     "id": "helper.DataProcessor",
     "component_type": "class",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/helper.py",
     "relative_path": "helper.py",
     "depends_on": [
       "helper.DataProcessor.process",
@@ -78,7 +78,7 @@
   "helper.DataProcessor.process": {
     "id": "helper.DataProcessor.process",
     "component_type": "method",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/helper.py",
     "relative_path": "helper.py",
     "depends_on": [],
     "start_line": 45,
@@ -89,7 +89,7 @@
   "helper.DataProcessor._internal_process": {
     "id": "helper.DataProcessor._internal_process",
     "component_type": "method",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/helper.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/helper.py",
     "relative_path": "helper.py",
     "depends_on": [],
     "start_line": 59,
@@ -100,7 +100,7 @@
   "main.main_function": {
     "id": "main.main_function",
     "component_type": "function",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/main.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/main.py",
     "relative_path": "main.py",
     "depends_on": [
       "helper.HelperClass",
@@ -115,7 +115,7 @@
   "main.utility_function": {
     "id": "main.utility_function",
     "component_type": "function",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/main.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/main.py",
     "relative_path": "main.py",
     "depends_on": [],
     "start_line": 13,
@@ -126,7 +126,7 @@
   "processor.AdvancedProcessor": {
     "id": "processor.AdvancedProcessor",
     "component_type": "class",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/processor.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/processor.py",
     "relative_path": "processor.py",
     "depends_on": [
       "processor.AdvancedProcessor.run",
@@ -143,7 +143,7 @@
   "processor.AdvancedProcessor.__init__": {
     "id": "processor.AdvancedProcessor.__init__",
     "component_type": "method",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/processor.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/processor.py",
     "relative_path": "processor.py",
     "depends_on": [
       "helper.HelperClass",
@@ -157,7 +157,7 @@
   "processor.AdvancedProcessor.run": {
     "id": "processor.AdvancedProcessor.run",
     "component_type": "method",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/processor.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/processor.py",
     "relative_path": "processor.py",
     "depends_on": [],
     "start_line": 12,
@@ -168,7 +168,7 @@
   "processor.AdvancedProcessor.process_result": {
     "id": "processor.AdvancedProcessor.process_result",
     "component_type": "method",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/processor.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/processor.py",
     "relative_path": "processor.py",
     "depends_on": [
       "main.utility_function"
@@ -181,7 +181,7 @@
   "test_file.test_function": {
     "id": "test_file.test_function",
     "component_type": "function",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/test_file.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/test_file.py",
     "relative_path": "test_file.py",
     "depends_on": [],
     "start_line": 1,
@@ -192,7 +192,7 @@
   "inner.inner_functions.inner_function": {
     "id": "inner.inner_functions.inner_function",
     "component_type": "function",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/inner/inner_functions.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/inner/inner_functions.py",
     "relative_path": "inner/inner_functions.py",
     "depends_on": [],
     "start_line": 1,
@@ -203,7 +203,7 @@
   "inner.inner_functions.get_random_quote": {
     "id": "inner.inner_functions.get_random_quote",
     "component_type": "function",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/inner/inner_functions.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/inner/inner_functions.py",
     "relative_path": "inner/inner_functions.py",
     "depends_on": [],
     "start_line": 17,
@@ -214,7 +214,7 @@
   "inner.inner_functions.generate_timestamp": {
     "id": "inner.inner_functions.generate_timestamp",
     "component_type": "function",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/inner/inner_functions.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/inner/inner_functions.py",
     "relative_path": "inner/inner_functions.py",
     "depends_on": [],
     "start_line": 33,
@@ -225,7 +225,7 @@
   "inner.inner_functions.get_system_status": {
     "id": "inner.inner_functions.get_system_status",
     "component_type": "function",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/inner/inner_functions.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/inner/inner_functions.py",
     "relative_path": "inner/inner_functions.py",
     "depends_on": [],
     "start_line": 36,
@@ -236,7 +236,7 @@
   "inner.inner_functions.fetch_user_message": {
     "id": "inner.inner_functions.fetch_user_message",
     "component_type": "function",
-    "file_path": "/home/dayuyang/DocAgent/data/raw_test_repo/inner/inner_functions.py",
+    "file_path": "/home/dayuyang/DocWeave/data/raw_test_repo/inner/inner_functions.py",
     "relative_path": "inner/inner_functions.py",
     "depends_on": [],
     "start_line": 52,

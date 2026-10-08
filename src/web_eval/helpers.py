@@ -1,6 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates
 """
-Helper functions for the DocAgent web application
+Helper functions for the DocWeave web application
 """
 
 import re

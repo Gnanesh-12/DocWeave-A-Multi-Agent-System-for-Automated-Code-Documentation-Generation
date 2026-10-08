@@ -1,7 +1,7 @@
 """Local LLM-judge for docstring truthfulness.
 
 For each documented class/function/method in the given file(s), asks a judge
-LLM (configured the same way as DocAgent's agents, e.g. via a local Ollama
+LLM (configured the same way as DocWeave's agents, e.g. via a local Ollama
 config) whether the docstring's claims (behavior, parameters, return value,
 exceptions) are factually consistent with the code. Meant as a lightweight,
 free alternative to src/evaluator/truthfulness.py and helpfulness_evaluator.py,

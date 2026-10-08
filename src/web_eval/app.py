@@ -24,7 +24,7 @@ from src.web_eval.helpers import parse_llm_score_from_text, extract_docstring_co
 
 # Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'DocAgent-evaluation-system'
+app.config['SECRET_KEY'] = 'DocWeave-evaluation-system'
 
 # Add template filter for extracting docstring components
 @app.template_filter('extract_component')
@@ -451,7 +451,7 @@ if __name__ == '__main__':
     
     # Print access information
     if args.host == '0.0.0.0':
-        print(f"\n🚀 DocAgent web server starting!")
+        print(f"\n🚀 DocWeave web server starting!")
         print(f"💻 Local access: http://localhost:{args.port}")
         print(f"🌐 Network access: http://<server-ip>:{args.port}")
         print(f"   (Replace <server-ip> with your server's IP address)")

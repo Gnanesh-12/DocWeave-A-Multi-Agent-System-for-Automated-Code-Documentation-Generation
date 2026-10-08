@@ -1,4 +1,4 @@
-"""Compare local Ollama models on DocAgent end to end, with one command.
+"""Compare local Ollama models on DocWeave end to end, with one command.
 
 For every installed candidate model it
   1. generates docstrings/Javadoc for each repo under eval_repos/ (timed),

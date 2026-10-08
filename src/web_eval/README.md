@@ -1,11 +1,11 @@
-# DocAgent - Docstring Evaluation System
+# DocWeave - Docstring Evaluation System
 
 A web application for evaluating the quality of Python docstrings in your codebase, providing objective metrics and actionable feedback.
 
 
 ## Overview
 
-DocAgentis a powerful tool that analyzes Python docstrings in a repository and evaluates them based on two key metrics:
+DocWeaveis a powerful tool that analyzes Python docstrings in a repository and evaluates them based on two key metrics:
 
 1. **Completeness**: Automatically checks if docstrings contain all required components (summary, description, arguments, returns, etc.)
 2. **Helpfulness**: Uses LLM-based evaluation to assess how helpful and informative each docstring component is on a scale of 1-5
@@ -26,7 +26,7 @@ The system provides an intuitive web interface for configuring evaluation settin
 
 ## System Architecture
 
-DocAgent's web evaluation system consists of several key components:
+DocWeave's web evaluation system consists of several key components:
 
 ```
 src/web_eval/
@@ -55,6 +55,6 @@ The system follows a Model-View-Controller architecture:
 
 The application integrates with two key external components:
 
-1. **DocAgent Evaluator Modules**: Core evaluation logic for assessing docstring quality
+1. **DocWeave Evaluator Modules**: Core evaluation logic for assessing docstring quality
 2. **LLM APIs**: OpenAI or Anthropic Claude for helpfulness evaluation
 

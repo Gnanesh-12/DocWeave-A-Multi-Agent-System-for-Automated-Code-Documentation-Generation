@@ -3,7 +3,7 @@ import eventlet
 eventlet.monkey_patch()  
 # Copyright (c) Meta Platforms, Inc. and affiliates
 """
-Web UI Launcher for DocAgent Docstring Generator
+Web UI Launcher for DocWeave Docstring Generator
 
 This script launches the web-based user interface for the docstring generation tool.
 The UI provides a more interactive and visual way to use the docstring generator,
@@ -51,7 +51,7 @@ def check_dependencies():
 
 def main():
     """Parse command line arguments and start the web UI."""
-    parser = argparse.ArgumentParser(description='Launch the DocAgent Web UI')
+    parser = argparse.ArgumentParser(description='Launch the DocWeave Web UI')
     parser.add_argument('--host', default='127.0.0.1', help='Host to bind the server to')
     parser.add_argument('--port', type=int, default=5000, help='Port to bind the server to')
     parser.add_argument('--debug', action='store_true', help='Run in debug mode')
@@ -64,7 +64,7 @@ def main():
     
     # Print banner
     print("\n" + "=" * 80)
-    print("DocAgent Web Interface".center(80))
+    print("DocWeave Web Interface".center(80))
     print("=" * 80)
     
     # Import and run the web app
@@ -77,7 +77,7 @@ def main():
         
         app, socketio = create_app(debug=args.debug)
         
-        logger.info(f"Starting DocAgent Web UI at: http://{args.host}:{args.port}")
+        logger.info(f"Starting DocWeave Web UI at: http://{args.host}:{args.port}")
         logger.info("Press Ctrl+C to stop the server")
         
         # Start the server

@@ -44,7 +44,7 @@ setup(
     version="0.1.0",
     author="Dayu Yang",
     author_email="dayuyang@meta.com",
-    description="DocAgent for High-quality docstring generation in Large-scale Python projects",
+    description="DocWeave for High-quality docstring generation in Large-scale Python projects",
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=find_packages(where="src"),

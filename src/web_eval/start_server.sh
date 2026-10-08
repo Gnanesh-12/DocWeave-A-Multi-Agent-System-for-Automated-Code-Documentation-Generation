@@ -52,7 +52,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Display startup message
-echo "Starting DocAgent Web Server..."
+echo "Starting DocWeave Web Server..."
 echo "Host: $HOST"
 echo "Port: $PORT"
 if [ -n "$DEBUG" ]; then

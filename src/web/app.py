@@ -291,7 +291,7 @@ def create_app(debug=True):
         return Response(
             patch_text,
             mimetype='text/x-patch',
-            headers={'Content-Disposition': 'attachment; filename=docagent-changes.patch'}
+            headers={'Content-Disposition': 'attachment; filename=docweave-changes.patch'}
         )
 
     @app.route('/api/start', methods=['POST'])

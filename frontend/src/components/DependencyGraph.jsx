@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import DependencyTree from './DependencyTree.jsx'
 import DependencyForceGraph from './DependencyForceGraph.jsx'
 import { getDependencyGraph } from '../api.js'
 
-export default function DependencyGraph() {
+export default function DependencyGraph({ onNavigateToFile }) {
   const [view, setView] = useState('tree')
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
@@ -15,32 +15,50 @@ export default function DependencyGraph() {
       } else {
         setError(result.message || 'Failed to load dependency graph')
       }
+    }).catch(err => {
+      setError(err.message || 'Failed to load dependency graph')
     })
   }, [])
 
+  if (error) {
+    return <div style={{ color: 'var(--err)', padding: '24px' }}>{error}</div>
+  }
+
+  if (!data) {
+    return <div style={{ color: 'var(--text-muted)', padding: '24px' }}>Loading dependency graph...</div>
+  }
+
+  if (data.nodes.length === 0) {
+    return <div style={{ color: 'var(--text-muted)', padding: '24px' }}>No components found.</div>
+  }
+
   return (
-    <div className="card">
-      <div className="dep-header">
-        <h2>Dependency Graph</h2>
-        {data && (
-          <div className="dep-toggle">
-            <button className={view === 'tree' ? 'active' : ''} onClick={() => setView('tree')}>Tree</button>
-            <button className={view === 'graph' ? 'active' : ''} onClick={() => setView('graph')}>Graph</button>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div className="segmented-control">
+          <button aria-selected={view === 'tree'} onClick={() => setView('tree')}>Tree view</button>
+          <button aria-selected={view === 'graph'} onClick={() => setView('graph')}>Graph view</button>
+        </div>
+        
+        <div style={{ display: 'flex', gap: '16px', fontSize: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--ok)' }}></div>
+            Documented
           </div>
-        )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--err)' }}></div>
+            Undocumented / Failed
+          </div>
+        </div>
       </div>
 
-      {error && <p className="empty-state">{error}</p>}
-      {!error && !data && <p className="empty-state">Loading dependency graph...</p>}
-      {data && data.nodes.length === 0 && <p className="empty-state">No components found.</p>}
-
-      {data && data.nodes.length > 0 && (
-        view === 'tree' ? (
-          <DependencyTree nodes={data.nodes} edges={data.edges} />
+      <div className="graph-container">
+        {view === 'tree' ? (
+          <DependencyTree nodes={data.nodes} edges={data.edges} onNavigateToFile={onNavigateToFile} />
         ) : (
-          <DependencyForceGraph nodes={data.nodes} edges={data.edges} />
-        )
-      )}
+          <DependencyForceGraph nodes={data.nodes} edges={data.edges} onNavigateToFile={onNavigateToFile} />
+        )}
+      </div>
     </div>
   )
 }
