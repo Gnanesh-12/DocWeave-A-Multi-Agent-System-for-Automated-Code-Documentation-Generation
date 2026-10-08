@@ -5,7 +5,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
-WORKSPACE_DIR = Path('c:/DocAgent-A-Multi-Agent-System-for-Automated-Code-Documentation-Generation/workspace')
+WORKSPACE_DIR = Path('c:/DocWeave-A-Multi-Agent-System-for-Automated-Code-Documentation-Generation/workspace')
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
 url = 'https://github.com/psf/requests.git'
 dest = WORKSPACE_DIR / uuid.uuid4().hex

@@ -1,99 +1,123 @@
 import React, { useState } from 'react'
-import { testApi } from '../api'
 
 export default function ConfigView({ url, setUrl, model, setModel, models, onStart, busy }) {
-  const [testingStatus, setTestingStatus] = useState(null) // null, 'testing', 'success', 'error'
-  const [testingMessage, setTestingMessage] = useState('')
+  const [urlError, setUrlError] = useState('')
 
-  const handleTestApi = async () => {
-    setTestingStatus('testing')
-    setTestingMessage('Testing connection...')
-    try {
-      const res = await testApi({
-        llm_type: 'huggingface',
-        model: model,
-        api_base: 'http://localhost:11434/v1',
-        api_key: 'EMPTY'
-      })
-      if (res.status === 'success') {
-        setTestingStatus('success')
-        setTestingMessage('✓ Connection successful')
-      } else {
-        setTestingStatus('error')
-        setTestingMessage(`✕ Connection failed: ${res.message}`)
-      }
-    } catch (err) {
-      setTestingStatus('error')
-      setTestingMessage(`✕ Connection failed: ${err.message}`)
+  const validateUrl = () => {
+    if (!url) {
+      setUrlError('')
+      return true
+    }
+    const val = url.trim()
+    if (!val.startsWith('http') && !val.startsWith('/') && !val.startsWith('C:\\') && !val.startsWith('c:\\')) {
+      setUrlError("That doesn't look like a Git URL or an absolute path")
+      return false
+    }
+    setUrlError('')
+    return true
+  }
+
+  const handleStart = () => {
+    if (validateUrl()) {
+      onStart()
     }
   }
 
   return (
-    <div className="card">
-      <div className="card-header">
-        <h2>Generate Documentation</h2>
-        <div className="helper-text" style={{ margin: 0 }}>
-          Analyze a repository and automatically generate high-quality documentation.
-        </div>
-      </div>
-      <div className="card-body">
+    <div className="config-layout">
+      <div className="config-form">
+        <h1 style={{ marginBottom: '8px' }}>Document a repository</h1>
+        <p className="helper-text" style={{ marginBottom: '32px' }}>
+          DocWeave reads your code locally and writes docstrings in dependency order. Nothing leaves this machine.
+        </p>
+
         <div className="form-group">
-          <label htmlFor="repo-url">Repository Source</label>
+          <label htmlFor="repo-url">Repository</label>
           <input
             id="repo-url"
             type="text"
+            className={urlError ? 'input-error' : ''}
             placeholder="https://github.com/owner/repo.git or /local/path"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
+            onBlur={validateUrl}
             disabled={busy}
           />
-          <div className="helper-text">Enter a public GitHub repository URL or a local repository path.</div>
+          {urlError && <div className="input-error-text">{urlError}</div>}
         </div>
 
         <div className="form-group">
-          <label>LLM Configuration</label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'var(--surface-sunken)', padding: '1rem', borderRadius: '4px', border: '1px solid var(--border)' }}>
-            <div>
-              <div className="helper-text" style={{ marginTop: 0, fontWeight: 600 }}>Provider:</div>
-              <div>HuggingFace / Ollama</div>
-            </div>
-            <div>
-              <div className="helper-text" style={{ marginTop: 0, fontWeight: 600 }}>API Base URL:</div>
-              <div>http://localhost:11434/v1</div>
-            </div>
-            <div>
-              <div className="helper-text" style={{ marginTop: 0, fontWeight: 600 }}>Model:</div>
-              <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                disabled={busy || models.length === 0}
-                style={{ marginBottom: 0, marginTop: '0.25rem' }}
-              >
-                {models.length === 0 ? <option value="">Backend offline / loading...</option> : null}
-                {models.map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
+          <label htmlFor="model-select">Model</label>
+          {models.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <select id="model-select" disabled>
+                <option>Loading models...</option>
               </select>
+              <div className="helper-text">
+                No Ollama models found. Run <code className="mono">ollama pull qwen2.5-coder:7b</code>, then refresh.
+              </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <button type="button" onClick={handleTestApi} disabled={busy || testingStatus === 'testing'}>
-                {testingStatus === 'testing' ? 'Testing connection...' : 'Test API'}
-              </button>
-            </div>
-          </div>
-          {testingStatus && testingStatus !== 'testing' && (
-            <div className={`helper-text ${testingStatus === 'success' ? 'success-text' : 'error-text'}`} style={{ marginTop: '0.5rem' }}>
-              {testingMessage}
-            </div>
+          ) : (
+            <select
+              id="model-select"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              disabled={busy}
+            >
+              {models.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
           )}
         </div>
 
+        <button
+          className="primary"
+          onClick={handleStart}
+          disabled={busy || !url.trim() || !!urlError || models.length === 0}
+          style={{ width: '100%', height: '40px', marginTop: '16px' }}
+        >
+          {busy ? (
+            <>
+              <span className="icon">↻</span> Cloning repository...
+            </>
+          ) : (
+            'Start generating'
+          )}
+        </button>
+      </div>
 
+      <div className="config-info">
+        <h3 style={{ marginBottom: '8px' }}>What happens next</h3>
+        <ul className="config-info-list">
+          <li>
+            <span className="config-info-list-num">1.</span>
+            <span>Navigator maps dependencies so each component is documented after the code it relies on.</span>
+          </li>
+          <li>
+            <span className="config-info-list-num">2.</span>
+            <span>Reader extracts the source code for the component.</span>
+          </li>
+          <li>
+            <span className="config-info-list-num">3.</span>
+            <span>Searcher gathers context from related files.</span>
+          </li>
+          <li>
+            <span className="config-info-list-num">4.</span>
+            <span>Writer produces a draft docstring.</span>
+          </li>
+          <li>
+            <span className="config-info-list-num">5.</span>
+            <span>Verifier reviews it for accuracy and requests changes if needed.</span>
+          </li>
+        </ul>
 
-        <div style={{ marginTop: '1.5rem' }}>
-          <button className="primary" onClick={onStart} disabled={busy || !url.trim()} style={{ width: '100%', padding: '0.75rem', fontSize: '1rem' }}>
-            {busy ? 'Generating Documentation...' : 'Generate Documentation'}
-          </button>
+        <div style={{ marginTop: '24px' }}>
+          <pre style={{ margin: 0, border: '1px solid var(--border)' }}>
+            <span style={{ color: 'var(--text-muted)' }}>def</span> calculate_tax(amount):<br />
+            <span className="docstring-prose" style={{ color: 'var(--accent)' }}>    """<br />    Calculates the 20% value-added tax for a given amount.<br />    """</span><br />
+            <span style={{ color: 'var(--text-muted)' }}>return</span> amount * <span style={{ color: 'var(--ok)' }}>0.2</span>
+          </pre>
         </div>
       </div>
     </div>

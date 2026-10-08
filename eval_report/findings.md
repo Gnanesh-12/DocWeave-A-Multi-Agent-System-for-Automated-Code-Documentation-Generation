@@ -23,7 +23,7 @@ Per-repository generation time (seconds), for reference:
 ## Suggested slides
 
 **Slide 1: Experiment setup**
-- Goal: pick the best free, locally run model for DocAgent (no paid APIs).
+- Goal: pick the best free, locally run model for DocWeave (no paid APIs).
 - Models: Qwen2.5-Coder 7B, Qwen3 8B, Qwen2.5-Coder 14B, all run through Ollama.
 - Test set: 2 repositories, one Python (pypa/sampleproject) and one Java (Spring gs-rest-service), 15 documented components per model.
 - Hardware: laptop with an RTX 3050 (6 GB VRAM), 15 GB RAM.
@@ -59,7 +59,7 @@ We compared three locally hosted models (Qwen2.5-Coder 7B, Qwen3 8B and Qwen2.5-
 
 ## Method (for the report)
 
-- Pipeline: DocAgent's four agents (Reader, Searcher, Writer, Verifier) process components in dependency order. Only the model changes between runs; prompts, settings and test repositories are identical.
+- Pipeline: DocWeave's four agents (Reader, Searcher, Writer, Verifier) process components in dependency order. Only the model changes between runs; prompts, settings and test repositories are identical.
 - Completeness: for Python, the project's completeness evaluator (presence of summary, description, arguments, returns, and similar sections). For Java, the share of required `@param` and `@return` tags present, plus presence of the Javadoc itself.
 - Truthfulness: a separate language model (llama3.2, 3B) judges each generated docstring against its code and returns TRUTHFUL, PARTIALLY_TRUTHFUL or HALLUCINATED. Score = (TRUTHFUL + 0.5 x PARTIALLY_TRUTHFUL) / components judged.
 - Format warnings: count of model replies missing the required `<DOCSTRING>` tags.

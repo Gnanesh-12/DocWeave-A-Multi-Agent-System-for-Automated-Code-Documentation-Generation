@@ -1,10 +1,10 @@
-# DocAgent Web Interface
+# DocWeave Web Interface
 
-A real-time web visualization system for the DocAgent docstring generation tool.
+A real-time web visualization system for the DocWeave docstring generation tool.
 
 ## Overview
 
-The DocAgent Web Interface provides a modern, interactive web UI for generating and tracking Python docstring generation. The application visualizes the agent-based docstring generation process in real-time, allowing users to monitor progress, view code structure, track completeness metrics, and manage the configuration.
+The DocWeave Web Interface provides a modern, interactive web UI for generating and tracking Python docstring generation. The application visualizes the agent-based docstring generation process in real-time, allowing users to monitor progress, view code structure, track completeness metrics, and manage the configuration.
 
 ## Features
 

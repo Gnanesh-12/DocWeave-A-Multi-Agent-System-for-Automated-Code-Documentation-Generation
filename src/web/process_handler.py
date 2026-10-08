@@ -75,7 +75,7 @@ class OutputParser:
             r'Processing component \d+/\d+',  # Progress messages
             r'╡.*╞',     # Table separators
             r'═+',       # Table lines
-            r'DocAgent (?:Workflow )?Status',  # Workflow status header
+            r'DocWeave (?:Workflow )?Status',  # Workflow status header
             r'Processing: ',    # Processing status line
             r'File: ',          # File status line
             r'Active Agent: ',  # Agent status line

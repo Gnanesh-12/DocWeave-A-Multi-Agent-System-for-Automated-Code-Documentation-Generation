@@ -3,10 +3,10 @@ import Header from './components/Header.jsx'
 import ConfigView from './components/ConfigView.jsx'
 import DashboardView from './components/DashboardView.jsx'
 import ResultsView from './components/ResultsView.jsx'
-import DependencyGraph from './components/DependencyGraph.jsx'
 import { cloneRepo, getModels, startOllama, stopGeneration, getResults, getStatus, getSocket } from './api.js'
+import { AlertCircle, Copy, RotateCcw } from 'lucide-react'
 
-const MAX_LOG_LINES = 1000
+const MAX_LOG_LINES = 5000
 
 export default function App() {
   const [phase, setPhase] = useState('form') // 'form' | 'running' | 'results'
@@ -23,9 +23,7 @@ export default function App() {
   const [repoStructure, setRepoStructure] = useState({})
   const [logs, setLogs] = useState([])
   const [files, setFiles] = useState([])
-
-  const phaseRef = useRef(phase)
-  phaseRef.current = phase
+  const [metrics, setMetrics] = useState(null)
 
   useEffect(() => {
     getModels()
@@ -36,7 +34,7 @@ export default function App() {
       })
       .catch((err) => {
         console.error("Failed to fetch models from backend:", err)
-        setError("Failed to connect to the backend server. Is it running?")
+        setError("Couldn't reach Ollama at localhost:11434. Make sure Ollama is running, then try again.")
         setAppStatus("error")
       })
   }, [])
@@ -80,11 +78,8 @@ export default function App() {
       setFiles(result.files || [])
       setBusy(false)
       setAppStatus('complete')
-      // Only transition to results if we want. For now, keep dashboard visible but complete.
-      // setPhase('results')
     }
     const onError = (data) => {
-      // If stopped manually
       if (data.message && data.message.toLowerCase().includes('stopped')) {
         setAppStatus('cancelled')
       } else {
@@ -114,26 +109,32 @@ export default function App() {
     setBusy(true)
     setAppStatus('running')
 
-    const cloneResult = await cloneRepo(url.trim())
-    if (cloneResult.status !== 'success') {
-      setError(cloneResult.message || 'Failed to clone repository')
+    try {
+      const cloneResult = await cloneRepo(url.trim())
+      if (cloneResult.status !== 'success') {
+        setError(cloneResult.message || 'Failed to clone repository')
+        setBusy(false)
+        setAppStatus('error')
+        return
+      }
+
+      const startResult = await startOllama(model)
+      if (startResult.status !== 'success') {
+        setError(startResult.message || 'Failed to start generation')
+        setBusy(false)
+        setAppStatus('error')
+        return
+      }
+
+      setAgentStatus({})
+      setProgress({})
+      setLogs([])
+      setPhase('running')
+    } catch (err) {
+      setError(err.message || 'A network error occurred while communicating with the backend.')
       setBusy(false)
       setAppStatus('error')
-      return
     }
-
-    const startResult = await startOllama(model)
-    if (startResult.status !== 'success') {
-      setError(startResult.message || 'Failed to start generation')
-      setBusy(false)
-      setAppStatus('error')
-      return
-    }
-
-    setAgentStatus({})
-    setProgress({})
-    setLogs([])
-    setPhase('running')
   }
 
   async function handleStop() {
@@ -152,17 +153,30 @@ export default function App() {
 
   return (
     <div className="app">
-      <Header status={appStatus} isRunning={busy} onStop={handleStop} />
+      <Header status={appStatus} phase={phase} model={phase !== 'form' ? model : null} />
 
-      <main className="main-content">
-        {error && (
-          <div className="error-banner">
-            <h3>Error</h3>
-            <p>{error}</p>
+      {error && (
+        <div className="error-banner" role="alert">
+          <div className="error-banner-content">
+            <div className="error-banner-title">
+              <AlertCircle size={16} className="icon" />
+              Generation halted
+            </div>
+            <div className="error-banner-details">
+              {error}
+            </div>
+            <div className="error-banner-actions">
+              <button className="danger" onClick={handleReset}>Start over</button>
+              <button className="secondary" onClick={() => navigator.clipboard.writeText(error)}>
+                <Copy size={14} /> Copy error details
+              </button>
+            </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {phase === 'form' && (
+      {phase === 'form' && (
+        <main className="main-content narrow">
           <ConfigView
             url={url}
             setUrl={setUrl}
@@ -172,39 +186,55 @@ export default function App() {
             busy={busy}
             onStart={handleStart}
           />
-        )}
+        </main>
+      )}
 
-        {phase === 'running' && (
-          <>
+      {phase === 'running' && (
+        <>
+          {appStatus === 'complete' ? (
+            <div className="status-strip">
+              <div className="status-strip-inner" style={{ alignItems: 'center' }}>
+                <div style={{ fontSize: '1rem', color: 'var(--text)' }}>
+                  Documented {progress.processed_components || 0} components.
+                </div>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <button className="primary" onClick={() => setPhase('results')}>Review changes</button>
+                  <button className="secondary" onClick={handleReset}>Start over</button>
+                </div>
+              </div>
+            </div>
+          ) : (appStatus === 'cancelled' || appStatus === 'error') ? (
+            <div className="status-strip">
+              <div className="status-strip-inner">
+                <div style={{ fontSize: '1rem', color: 'var(--text)' }}>
+                  Process stopped.
+                </div>
+                <button className="primary" onClick={handleReset}>
+                  <RotateCcw size={14} /> Start over
+                </button>
+              </div>
+            </div>
+          ) : (
             <DashboardView
               agentStatus={agentStatus}
               progress={progress}
               repoStructure={repoStructure}
               logs={logs}
               status={appStatus}
+              onStop={handleStop}
             />
-            {appStatus === 'complete' && (
-              <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
-                <button className="primary" onClick={() => setPhase('results')}>View Results & Diff</button>
-                <button onClick={handleReset}>Process Another Repository</button>
-              </div>
-            )}
-            {(appStatus === 'cancelled' || appStatus === 'error') && (
-              <div style={{ marginTop: '1.5rem' }}>
-                <button onClick={handleReset}>Start Over</button>
-              </div>
-            )}
-          </>
-        )}
+          )}
+        </>
+      )}
 
-        {phase === 'results' && (
-          <>
-            <button style={{ marginBottom: '1rem' }} onClick={handleReset}>&larr; Process another repository</button>
-            <DependencyGraph />
-            <ResultsView files={files} />
-          </>
-        )}
-      </main>
+      {phase === 'results' && (
+        <main className="main-content">
+          <div style={{ marginBottom: '24px' }}>
+            <button className="ghost" onClick={handleReset}>&larr; Process another repository</button>
+          </div>
+          <ResultsView files={files} progress={progress} />
+        </main>
+      )}
     </div>
   )
 }

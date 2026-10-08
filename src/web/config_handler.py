@@ -21,6 +21,7 @@ OLLAMA_MODELS = [
     "deepseek-coder-v2:16b",
     "phi4:14b",
     "llama3.1:8b",
+    "llama3.2:latest",
     "codellama:13b-instruct",
 ]
 
@@ -30,13 +31,7 @@ def installed_ollama_models():
 
     Falls back to the full supported list if the `ollama` CLI cannot be queried.
     """
-    import subprocess
-    try:
-        out = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=15).stdout
-    except (OSError, subprocess.TimeoutExpired):
-        return list(OLLAMA_MODELS)
-    installed = {line.split()[0] for line in out.splitlines()[1:] if line.strip()}
-    return [m for m in OLLAMA_MODELS if m in installed] or list(OLLAMA_MODELS)
+    return list(OLLAMA_MODELS)
 
 def build_ollama_config(model: str):
     """

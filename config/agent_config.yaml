@@ -1,4 +1,4 @@
-# Example configuration file for DocAgent
+# Example configuration file for DocWeave
 # Copy this file to agent_config.yaml and add your own API keys
 
 # LLM configuration for all agents
