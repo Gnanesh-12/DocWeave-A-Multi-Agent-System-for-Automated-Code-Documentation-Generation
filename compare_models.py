@@ -26,6 +26,7 @@ Other options:
 import argparse
 import csv
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -50,6 +51,9 @@ CANDIDATES = [
     "phi4:14b",
     "llama3.1:8b",
 ]
+# Hosted models (need ANTHROPIC_API_KEY; cost money). Never run by default: pass them explicitly,
+# e.g.  --models claude-haiku-4-5-20251001 qwen2.5-coder:7b   or   --judge claude-haiku-4-5-20251001
+HOSTED_MODELS = ["claude-haiku-4-5-20251001", "claude-sonnet-5-5"]
 # Judge preference: a model that is not also being judged, strongest first.
 JUDGE_PREFERENCE = ["phi4:14b", "llama3.1:8b", "gemma3:12b", "gemma3:4b", "llama3.2:latest", "qwen3:8b"]
 
@@ -59,7 +63,20 @@ PLACEHOLDER = "No docstring provided."
 
 # --------------------------------------------------------------------------- ollama
 
+def is_hosted(model: str) -> bool:
+    """Hosted Claude models (Anthropic API) rather than local Ollama ones."""
+    return model.startswith("claude-")
+
+
 def installed_models() -> List[str]:
+    """Models this run can use: installed Ollama models, plus Claude if ANTHROPIC_API_KEY is set."""
+    local = _ollama_models()
+    if os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        local += [m for m in HOSTED_MODELS if m not in local]
+    return local
+
+
+def _ollama_models() -> List[str]:
     try:
         out = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=60).stdout
     except (OSError, subprocess.TimeoutExpired):
@@ -71,7 +88,7 @@ def pull_models(models: List[str], attempts: int = 8) -> None:
     """`ollama pull` with retries: partial downloads resume, so a bad connection just needs more tries."""
     have = set(installed_models())
     for model in models:
-        if model in have:
+        if model in have or is_hosted(model):
             continue
         for attempt in range(1, attempts + 1):
             print(f"\n[pull] {model} (attempt {attempt}/{attempts})", flush=True)
@@ -83,7 +100,9 @@ def pull_models(models: List[str], attempts: int = 8) -> None:
 
 
 def stop_model(model: str) -> None:
-    """Unload a model so the next one gets the whole 6 GB GPU."""
+    """Unload a model so the next one gets the whole 6 GB GPU (nothing to unload for hosted models)."""
+    if is_hosted(model):
+        return
     subprocess.run(["ollama", "stop", model], capture_output=True, timeout=60)
 
 
@@ -91,6 +110,25 @@ def stop_model(model: str) -> None:
 
 def write_config(model: str, directory: Path) -> Path:
     # Built here (not via src.web.config_handler) so this script never imports the Flask/eventlet app.
+    if is_hosted(model):
+        # The key stays a placeholder resolved from the environment; nothing secret is written to disk.
+        llm = {
+            "type": "claude", "model": model, "api_key": "${ANTHROPIC_API_KEY}",
+            "temperature": 0.1, "max_output_tokens": 2048,
+            "rate_limits": {"requests_per_minute": 50, "input_tokens_per_minute": 40000,
+                            "output_tokens_per_minute": 16000,
+                            "input_token_price_per_million": 1.0 if "haiku" in model else 3.0,
+                            "output_token_price_per_million": 5.0 if "haiku" in model else 15.0},
+        }
+        config = {
+            "llm": llm,
+            "flow_control": {"max_reader_search_attempts": 2, "max_verifier_rejections": 1, "status_sleep_time": 0},
+            "docstring_options": {"overwrite_docstrings": False},
+        }
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / (re.sub(r"[^A-Za-z0-9]+", "_", model) + ".yaml")
+        path.write_text(yaml.safe_dump(config), encoding="utf-8")
+        return path
     llm = {
         "type": "huggingface",
         "model": model,

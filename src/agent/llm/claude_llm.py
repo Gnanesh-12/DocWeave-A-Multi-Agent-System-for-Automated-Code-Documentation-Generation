@@ -21,7 +21,9 @@ class ClaudeLLM(BaseLLM):
             model: Model identifier (e.g., "claude-3-sonnet-20240229")
             rate_limits: Optional dictionary with rate limit settings
         """
-        self.client = anthropic.Anthropic(api_key=api_key)
+        # The SDK retries transient failures (timeouts, 429, 5xx) with backoff; allow more
+        # attempts than the default 2 so a flaky connection does not abort a long run.
+        self.client = anthropic.Anthropic(api_key=api_key, max_retries=6, timeout=120.0)
         self.model = model
         
         # Default rate limits for Claude 3.7 Sonnet
@@ -148,27 +150,29 @@ class ClaudeLLM(BaseLLM):
             else:
                 chat_messages.append(self._convert_to_claude_message(msg))
         
-        # Count input tokens
-        input_tokens = self._count_messages_tokens(messages, system_message)
-        
+        # Estimate input size locally for the rate limiter (about 3.5 characters per token).
+        # The API's count_tokens endpoint would cost an extra network round trip per call.
+        chars = sum(len(m.get("content") or "") for m in chat_messages) + len(system_message or "")
+        estimated_input_tokens = int(chars / 3.5) + 10 * len(chat_messages)
+
         # Wait if we're approaching rate limits (estimate output tokens as max_output_tokens)
-        self.rate_limiter.wait_if_needed(input_tokens, max_tokens)
-        
-        # Make the API call
-        response = self.client.messages.create(
+        self.rate_limiter.wait_if_needed(estimated_input_tokens, max_tokens)
+
+        request = dict(
             model=self.model,
             messages=chat_messages,
-            system=system_message,
             temperature=temperature,
-            max_tokens=max_tokens
+            max_tokens=max_tokens or 4096,
         )
-        
-        result_text = response.content[0].text
-        
-        # Count output tokens and record request
-        output_tokens = self._count_tokens(result_text)
-        self.rate_limiter.record_request(input_tokens, output_tokens)
-        
+        if system_message:
+            request["system"] = system_message
+        response = self.client.messages.create(**request)
+
+        result_text = "".join(block.text for block in response.content if getattr(block, "type", "") == "text")
+
+        # Record the real usage reported by the API.
+        self.rate_limiter.record_request(response.usage.input_tokens, response.usage.output_tokens)
+
         return result_text
     
     def format_message(self, role: str, content: str) -> Dict[str, str]:

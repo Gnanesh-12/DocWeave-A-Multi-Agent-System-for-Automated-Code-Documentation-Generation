@@ -26,12 +26,70 @@ OLLAMA_MODELS = [
 ]
 
 
-def installed_ollama_models():
-    """Supported models that are actually installed (so the UI never offers one that would fail).
+# Hosted Claude models (Anthropic API). Offered only when ANTHROPIC_API_KEY is set in the
+# environment the web server was started from; the key itself is never written to a config.
+CLAUDE_MODELS = [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5-5",
+]
+CLAUDE_KEY_ENV = "ANTHROPIC_API_KEY"
 
-    Falls back to the full supported list if the `ollama` CLI cannot be queried.
+
+def is_claude_model(model: str) -> bool:
+    return model in CLAUDE_MODELS
+
+
+def claude_available() -> bool:
+    return bool(os.environ.get(CLAUDE_KEY_ENV, "").strip())
+
+
+def installed_ollama_models():
+    """Models the UI can actually run: installed Ollama models, plus Claude when a key is set.
+
+    Falls back to the full Ollama list if the `ollama` CLI cannot be queried, so a missing CLI
+    never leaves the dropdown empty.
     """
-    return list(OLLAMA_MODELS)
+    import subprocess
+    models = list(OLLAMA_MODELS)
+    try:
+        out = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=15).stdout
+        installed = {line.split()[0] for line in out.splitlines()[1:] if line.strip()}
+        models = [m for m in OLLAMA_MODELS if m in installed] or models
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    if claude_available():
+        models += CLAUDE_MODELS
+    return models
+
+
+def build_claude_config(model: str):
+    """Agent config for a hosted Claude model. The API key stays a placeholder resolved from the
+    environment at start-up, so no secret is saved to the temporary config file."""
+    return {
+        "llm": {
+            "type": "claude",
+            "model": model,
+            "api_key": "${%s}" % CLAUDE_KEY_ENV,
+            "temperature": 0.1,
+            "max_output_tokens": 2048,
+            "rate_limits": {
+                "requests_per_minute": 50,
+                "input_tokens_per_minute": 40000,
+                "output_tokens_per_minute": 16000,
+                "input_token_price_per_million": 1.0 if "haiku" in model else 3.0,
+                "output_token_price_per_million": 5.0 if "haiku" in model else 15.0,
+            },
+        },
+        "flow_control": {
+            "max_reader_search_attempts": 2,
+            "max_verifier_rejections": 1,
+            "status_sleep_time": 0,
+        },
+        "docstring_options": {
+            "overwrite_docstrings": False,
+        },
+    }
+
 
 def build_ollama_config(model: str):
     """
@@ -47,8 +105,15 @@ def build_ollama_config(model: str):
     Raises:
         ValueError: If the model is not one of the supported OLLAMA_MODELS
     """
+    if is_claude_model(model):
+        if not claude_available():
+            raise ValueError(
+                f"{CLAUDE_KEY_ENV} is not set. In the terminal you start the web server from, run: "
+                f'$env:{CLAUDE_KEY_ENV} = "<your key>", then restart the server.'
+            )
+        return build_claude_config(model)
     if model not in OLLAMA_MODELS:
-        raise ValueError(f"Unsupported model: {model}. Supported models: {OLLAMA_MODELS}")
+        raise ValueError(f"Unsupported model: {model}. Supported models: {OLLAMA_MODELS + CLAUDE_MODELS}")
 
     llm = {
         "type": "huggingface",

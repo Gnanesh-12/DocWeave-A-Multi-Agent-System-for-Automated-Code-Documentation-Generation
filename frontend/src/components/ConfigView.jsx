@@ -65,9 +65,15 @@ export default function ConfigView({ url, setUrl, model, setModel, models, onSta
               disabled={busy}
             >
               {models.map(m => (
-                <option key={m} value={m}>{m}</option>
+                <option key={m} value={m}>{m.startsWith('claude-') ? `${m} (hosted, uses your API key)` : m}</option>
               ))}
             </select>
+          )}
+          {model.startsWith('claude-') && (
+            <div className="helper-text" style={{ marginTop: '8px' }}>
+              This model runs on Anthropic&apos;s servers: your code is sent to the Anthropic API and each
+              component is billed to your API key. Use it for open-source or non-sensitive code.
+            </div>
           )}
         </div>
 

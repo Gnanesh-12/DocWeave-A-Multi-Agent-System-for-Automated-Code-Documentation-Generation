@@ -1,9 +1,38 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates
+import os
 from typing import Dict, Any, Optional
 from pathlib import Path
 import yaml
 
 from .base import BaseLLM
+
+_DEFAULT_KEY_ENV = {
+    "openai": "OPENAI_API_KEY",
+    "claude": "ANTHROPIC_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+}
+
+
+def resolve_api_key(config: Dict[str, Any], llm_type: str) -> str:
+    """API key from the config, or from an environment variable.
+
+    A config value like "${ANTHROPIC_API_KEY}" (or no key at all) is read from the environment,
+    so secrets never have to be written into a config file or committed.
+    """
+    key = str(config.get("api_key") or "").strip()
+    env_name = _DEFAULT_KEY_ENV.get(llm_type)
+    if key.startswith("${") and key.endswith("}"):
+        env_name, key = key[2:-1], ""
+    if key:
+        return key
+    value = os.environ.get(env_name or "", "").strip()
+    if not value:
+        raise ValueError(
+            f"No API key for '{llm_type}'. Set the {env_name} environment variable "
+            f"(PowerShell: $env:{env_name} = \"...\") and start the app from that same terminal."
+        )
+    return value
+
 
 class LLMFactory:
     """Factory class for creating LLM instances."""
@@ -50,21 +79,21 @@ class LLMFactory:
         if llm_type == "openai":
             from .openai_llm import OpenAILLM
             return OpenAILLM(
-                api_key=config["api_key"],
+                api_key=resolve_api_key(config, "openai"),
                 model=model,
                 rate_limits=rate_limits
             )
         elif llm_type == "claude":
             from .claude_llm import ClaudeLLM
             return ClaudeLLM(
-                api_key=config["api_key"],
+                api_key=resolve_api_key(config, "claude"),
                 model=model,
                 rate_limits=rate_limits
             )
         elif llm_type == "gemini":
             from .gemini_llm import GeminiLLM
             return GeminiLLM(
-                api_key=config["api_key"],
+                api_key=resolve_api_key(config, "gemini"),
                 model=model,
                 rate_limits=rate_limits
             )

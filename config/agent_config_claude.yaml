@@ -1,0 +1,29 @@
+# Hosted Claude (Anthropic API). Costs money per call; your code is sent to Anthropic.
+#
+# The API key is NOT stored here. Set it as an environment variable in the terminal you
+# start the app from, then run as usual:
+#   PowerShell:  $env:ANTHROPIC_API_KEY = "sk-ant-..."
+# "${ANTHROPIC_API_KEY}" below is read from that variable at start-up.
+
+llm:
+  type: "claude"
+  model: "claude-haiku-4-5-20251001"   # cheapest; use "claude-sonnet-5-5" for higher quality
+  api_key: "${ANTHROPIC_API_KEY}"
+  temperature: 0.1
+  max_output_tokens: 2048
+  # Client-side throttling so a run stays under your account's limits. Raise these if your
+  # Anthropic tier allows more. Prices are per million tokens and only feed the cost tally.
+  rate_limits:
+    requests_per_minute: 50
+    input_tokens_per_minute: 40000
+    output_tokens_per_minute: 16000
+    input_token_price_per_million: 1.0
+    output_token_price_per_million: 5.0
+
+flow_control:
+  max_reader_search_attempts: 2
+  max_verifier_rejections: 1
+  status_sleep_time: 0
+
+docstring_options:
+  overwrite_docstrings: false
