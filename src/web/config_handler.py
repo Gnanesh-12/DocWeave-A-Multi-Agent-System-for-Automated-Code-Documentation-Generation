@@ -41,9 +41,51 @@ GROQ_API_BASE = os.environ.get("DOCWEAVE_GROQ_API_BASE", "https://api.groq.com/o
 GROQ_PREFIX = "groq:"
 
 
+# Groq retires models regularly (llama-3.3-70b-versatile was shut down in August 2026), so the model list is
+# discovered from Groq itself instead of being hard-coded. Preferred models are listed first.
+GROQ_PREFERRED = [
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "llama-3.1-8b-instant",
+    "llama-3.3-70b-versatile",
+]
+GROQ_FALLBACK = ["openai/gpt-oss-120b"]
+# Not chat/text models, or agent systems rather than plain models.
+_GROQ_EXCLUDE = ("whisper", "guard", "tts", "orpheus", "playai", "embed", "safeguard", "compound", "prompt-guard")
+_groq_cache = {"at": 0.0, "ids": []}
+
+
 def groq_model_ids():
-    raw = os.environ.get("DOCWEAVE_GROQ_MODELS", "llama-3.3-70b-versatile")
-    return [m.strip() for m in raw.split(",") if m.strip()]
+    """Chat models the Groq key can use. DOCWEAVE_GROQ_MODELS (comma separated) overrides discovery.
+
+    Asks Groq's /models endpoint (cached for 5 minutes). If that fails, falls back to a known-good model.
+    """
+    override = os.environ.get("DOCWEAVE_GROQ_MODELS", "").strip()
+    if override:
+        return [m.strip() for m in override.split(",") if m.strip()]
+    import time
+    now = time.time()
+    if _groq_cache["ids"] and now - _groq_cache["at"] < 300:
+        return list(_groq_cache["ids"])
+    ids = []
+    try:
+        import json
+        import urllib.request
+        req = urllib.request.Request(
+            GROQ_API_BASE.rstrip("/") + "/models",
+            headers={"Authorization": "Bearer " + os.environ.get(GROQ_KEY_ENV, "").strip(), "User-Agent": "DocWeave"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            available = [m["id"] for m in json.load(resp).get("data", []) if m.get("active", True)]
+        usable = [m for m in available if not any(x in m.lower() for x in _GROQ_EXCLUDE)]
+        ids = [m for m in GROQ_PREFERRED if m in usable] + sorted(m for m in usable if m not in GROQ_PREFERRED)
+        ids = ids[:8]
+    except Exception:
+        ids = []
+    if ids:
+        _groq_cache.update(at=now, ids=ids)
+        return list(ids)
+    return list(GROQ_FALLBACK)
 
 
 def is_groq_model(model: str) -> bool:
@@ -99,18 +141,25 @@ def installed_ollama_models():
 def build_groq_config(model: str):
     """Agent config for a Groq-hosted model through the OpenAI-compatible client. The key stays a
     placeholder resolved from the environment, so no secret is written to the temporary config file."""
+    model_id = model[len(GROQ_PREFIX):]
+    llm = {
+        "type": "huggingface",  # the OpenAI-compatible client
+        "model": model_id,
+        "api_base": GROQ_API_BASE,
+        "api_key": "${%s}" % GROQ_KEY_ENV,
+        "temperature": 0.1,
+        "max_output_tokens": 1024,
+        "max_input_tokens": 6000,
+        "num_ctx": 0,          # Ollama-only field: do not send it to Groq
+        "max_retries": 8,      # free tier is rate limited; retry 429s with the server's Retry-After
+    }
+    if "gpt-oss" in model_id:
+        # Reasoning model: reasoning tokens count against max_tokens, so keep the reasoning short
+        # and leave room for the actual docstring.
+        llm["reasoning_effort"] = "low"
+        llm["max_output_tokens"] = 2048
     return {
-        "llm": {
-            "type": "huggingface",  # the OpenAI-compatible client
-            "model": model[len(GROQ_PREFIX):],
-            "api_base": GROQ_API_BASE,
-            "api_key": "${%s}" % GROQ_KEY_ENV,
-            "temperature": 0.1,
-            "max_output_tokens": 1024,
-            "max_input_tokens": 6000,
-            "num_ctx": 0,          # Ollama-only field: do not send it to Groq
-            "max_retries": 8,      # free tier is rate limited; retry 429s with the server's Retry-After
-        },
+        "llm": llm,
         "flow_control": {
             "max_reader_search_attempts": 2,
             "max_verifier_rejections": 1,

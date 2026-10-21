@@ -269,13 +269,26 @@ export default function DashboardView({ agentStatus, progress, repoStructure, lo
   // Find most recent meaningful message
   const recentMsg = logs.slice().reverse().find(l => l.level === 'INFO' && l.message && !l.message.includes('Status update'))?.message
 
+  // "Complete" only means the process ended: every component may still have failed (for example a
+  // model or rate-limit error), so say what actually happened.
+  const nothingDone = isComplete && total > 0 && processed === 0
+  const someFailed = isComplete && total > 0 && processed > 0 && processed < total
+
   let headline = `${processed} / ${total} components`
-  if (isComplete) headline = `Documented ${processed || total} components`
+  if (nothingDone) headline = 'No components were documented'
+  else if (someFailed) headline = `Documented ${processed} of ${total} components`
+  else if (isComplete) headline = `Documented ${processed || total} components`
   else if (isStopped) headline = `Stopped at ${processed} / ${total} components`
 
   let workName = agentStatus.current_component || 'Waiting for component...'
   let workFile = agentStatus.current_file || ''
-  if (isComplete) {
+  if (nothingDone) {
+    workName = 'The run finished, but nothing was written'
+    workFile = 'Every component failed. Open the Errors tab in the log below for the reason (for example a model or rate-limit error).'
+  } else if (someFailed) {
+    workName = 'Some components could not be documented'
+    workFile = 'Check the Errors tab in the log below. The review shows what was written.'
+  } else if (isComplete) {
     workName = 'All components documented'
     workFile = 'Open the review to see exactly what changed in each file.'
   } else if (isStopped) {
@@ -308,7 +321,7 @@ export default function DashboardView({ agentStatus, progress, repoStructure, lo
             {onStop && !isFinished && (
               <button className="danger" onClick={onStop}>Stop</button>
             )}
-            {isComplete && onReview && (
+            {isComplete && !nothingDone && onReview && (
               <button className="primary" onClick={onReview}>Review changes</button>
             )}
             {isFinished && onReset && (

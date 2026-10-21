@@ -5,7 +5,7 @@ Two ways to give people a link:
 | | **A. Permanent link (cloud)** | **B. Temporary link (your laptop)** |
 |---|---|---|
 | Works when your laptop is off | Yes | No |
-| Model | Hosted: Groq free tier (Llama 3.3 70B) | Your local Ollama models |
+| Model | Hosted: Groq free tier (an open model such as gpt-oss-120b) | Your local Ollama models |
 | Cost | $0 | $0 |
 | Setup | ~30 min, once | ~10 min |
 
@@ -67,7 +67,7 @@ like `https://docweave-xxxx.onrender.com`. That is the permanent link.
 
 ### Step 5. Test
 Open the link, paste `https://github.com/pypa/sampleproject.git`, and the model dropdown should show
-**llama-3.3-70b-versatile (hosted on Groq)**. Start a run; expect several minutes.
+a Groq model such as **gpt-oss-120b (hosted on Groq)**. Start a run; expect several minutes.
 
 ### Updating later
 Push new commits to `main`, then in Render click **Manual Deploy** -> **Deploy latest commit**.
@@ -79,8 +79,10 @@ Push new commits to `main`, then in Render click **Manual Deploy** -> **Deploy l
   Change it with the environment variable `DOCWEAVE_MAX_COMPONENTS`.
 - **One run at a time.** Server state is shared, so a second visitor is told a run is in progress.
 - The endpoints that accept arbitrary settings (`/api/start`, `/api/test_api`, ...) are disabled.
-- Optional environment variables: `DOCWEAVE_GROQ_MODELS` (comma-separated Groq model ids; use it if Groq retires the default
-  `llama-3.3-70b-versatile`), `ANTHROPIC_API_KEY` (adds Claude models; **costs money per visitor run**, so leave it unset on a public link).
+- The model list comes from Groq itself (the app asks which models your key can use), so retired models disappear on their own.
+  Groq retires models regularly (Llama 3.3 70B was shut down in August 2026).
+- Optional environment variables: `DOCWEAVE_GROQ_MODELS` (comma-separated model ids; forces the list instead of asking Groq),
+  `ANTHROPIC_API_KEY` (adds Claude models; **costs money per visitor run**, so leave it unset on a public link).
 
 ### Limits to expect
 - **Sleeping.** A free Render service sleeps after 15 minutes without traffic. The next visit takes about a minute to wake it.
@@ -91,10 +93,11 @@ Push new commits to `main`, then in Render click **Manual Deploy** -> **Deploy l
   The free quota cannot cost you money. It just runs out.
 - **Small machine.** Free instances have 512 MB of memory and a fraction of a CPU: the first page load and repository cloning are slow.
   Keep demo repositories small.
-- **Different model from the evaluation.** The demo uses a hosted 70B model, not the local 7B model used in the evaluation.
+- **Different model from the evaluation.** The demo uses a large hosted open model, not the local 7B model used in the evaluation.
 
 ### Troubleshooting
 - *Build fails:* open the **Logs** tab and send the first error line to whoever maintains the project.
+- *A run says "model ... does not exist" (HTTP 404):* Groq retired that model. Redeploy the latest code (it discovers models itself) or set `DOCWEAVE_GROQ_MODELS` to a current model id from console.groq.com.
 - *"No models available":* `GROQ_API_KEY` is missing or misspelled in the Render environment variables. Fix it and redeploy.
 - *A run fails with a rate-limit message:* wait a minute and try again, or use a smaller repository.
 - *"Out of memory" in the logs:* use a smaller repository, or upgrade the instance type.
