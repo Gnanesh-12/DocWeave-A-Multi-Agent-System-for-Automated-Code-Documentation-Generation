@@ -7,12 +7,14 @@ the web-based docstring generation visualization system.
 """
 
 import os
+import re
+import hmac
 import json
 import yaml
 import threading
 import eventlet
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, send_from_directory, Response
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response, abort
 from flask_socketio import SocketIO
 
 # Patch standard library for async support with eventlet
@@ -24,6 +26,23 @@ from . import process_handler
 from . import git_handler
 
 WORKSPACE_DIR = Path(__file__).parent.parent.parent / 'workspace'
+FRONTEND_DIST = Path(__file__).parent.parent.parent / 'frontend' / 'dist'
+
+# Public sharing mode (see DEPLOY.md). When DOCWEAVE_PUBLIC=1 the app is meant to sit behind a public
+# URL, so it only clones github.com repositories and disables endpoints that accept arbitrary config.
+PUBLIC_MODE = os.environ.get('DOCWEAVE_PUBLIC') == '1'
+GITHUB_URL_RE = re.compile(r'^https://github\.com/[\w.-]+/[\w.-]+?(\.git)?/?$')
+PUBLIC_BLOCKED_PATHS = {'/api/start', '/api/test_api', '/api/default_config', '/api/completeness'}
+
+
+def _basic_auth_ok(req) -> bool:
+    """True when no password is configured, or the request carries the right Basic credentials."""
+    user, password = os.environ.get('DOCWEAVE_USER', ''), os.environ.get('DOCWEAVE_PASSWORD', '')
+    if not (user and password):
+        return True
+    auth = req.authorization
+    return bool(auth and auth.username is not None and auth.password is not None
+                and hmac.compare_digest(auth.username, user) and hmac.compare_digest(auth.password, password))
 
 def create_app(debug=True):
     """
@@ -52,12 +71,27 @@ def create_app(debug=True):
         'process': None
     }
     
+    @app.before_request
+    def guard_requests():
+        """Optional shared password, and a locked-down API surface in public mode."""
+        if not _basic_auth_ok(request):
+            return Response('Authentication required', 401, {'WWW-Authenticate': 'Basic realm="DocWeave"'})
+        if PUBLIC_MODE and request.path in PUBLIC_BLOCKED_PATHS:
+            return jsonify({'status': 'error', 'message': 'This endpoint is disabled on the public deployment.'}), 403
+
     # Routes
-    @app.route('/')
-    def index():
-        """Render the main application page."""
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def index(path):
+        """Serve the built React app (frontend/dist) with SPA fallback; fall back to the old template."""
+        if path.startswith(('api/', 'socket.io/')):
+            abort(404)
+        if FRONTEND_DIST.is_dir():
+            if path and (FRONTEND_DIST / path).is_file():
+                return send_from_directory(FRONTEND_DIST, path)
+            return send_from_directory(FRONTEND_DIST, 'index.html')
         return render_template('index.html')
-    
+
     @app.route('/api/default_config')
     def get_default_config():
         """Get the default configuration from agent_config.yaml."""
@@ -203,6 +237,9 @@ def create_app(debug=True):
         if not url:
             return jsonify({'status': 'error', 'message': 'Repository URL is required'})
 
+        if PUBLIC_MODE and not GITHUB_URL_RE.match(url):
+            return jsonify({'status': 'error', 'message': 'Only public https://github.com/<owner>/<repo> links are accepted here.'})
+
         try:
             repo_path = git_handler.clone_repo(url, WORKSPACE_DIR)
         except ValueError as e:
@@ -232,6 +269,18 @@ def create_app(debug=True):
             config_path = config_handler.save_config(config)
         except ValueError as e:
             return jsonify({'status': 'error', 'message': str(e)})
+
+        # A public deployment shares one API quota, so refuse repositories that would use too much of it.
+        max_components = int(os.environ.get('DOCWEAVE_MAX_COMPONENTS', '40' if PUBLIC_MODE else '0') or 0)
+        if max_components:
+            graph = visualization_handler.get_dependency_graph(repo_path)
+            todo = sum(1 for n in graph.get('nodes', []) if not n.get('has_docstring'))
+            if todo > max_components:
+                return jsonify({
+                    'status': 'error',
+                    'message': (f'This repository has {todo} undocumented components; this public demo accepts at most '
+                                f'{max_components} per run. Try a smaller repository, or run DocWeave locally for larger ones.'),
+                })
 
         app.config['APP_STATE']['config'] = config
         app.config['APP_STATE']['is_running'] = True
@@ -367,6 +416,8 @@ def create_app(debug=True):
     @socketio.on('connect')
     def handle_connect():
         """Handle client connection to Socket.IO."""
+        if not _basic_auth_ok(request):
+            return False  # refuse the connection when a shared password is set and not supplied
         if app.config['APP_STATE']['is_running']:
             # Send current state to newly connected client
             socketio.emit('status_update', visualization_handler.get_current_status())

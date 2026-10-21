@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 
+const isHostedModel = (m) => !!m && (m.startsWith('claude-') || m.startsWith('groq:'))
+
 export default function ConfigView({ url, setUrl, model, setModel, models, onStart, busy }) {
   const [urlError, setUrlError] = useState('')
 
@@ -28,7 +30,7 @@ export default function ConfigView({ url, setUrl, model, setModel, models, onSta
       <div className="config-form">
         <h1 style={{ marginBottom: '8px' }}>Document a repository</h1>
         <p className="helper-text" style={{ marginBottom: '32px' }}>
-          DocWeave reads your code locally and writes docstrings in dependency order. Nothing leaves this machine.
+          DocWeave reads your code locally and writes docstrings in dependency order. With a local model nothing leaves this machine.
         </p>
 
         <div className="form-group">
@@ -54,7 +56,7 @@ export default function ConfigView({ url, setUrl, model, setModel, models, onSta
                 <option>Loading models...</option>
               </select>
               <div className="helper-text">
-                No Ollama models found. Run <code className="mono">ollama pull qwen2.5-coder:7b</code>, then refresh.
+                No models available. Locally, run <code className="mono">ollama pull qwen2.5-coder:7b</code>, then refresh. On a hosted deployment the server needs an API key.
               </div>
             </div>
           ) : (
@@ -65,14 +67,15 @@ export default function ConfigView({ url, setUrl, model, setModel, models, onSta
               disabled={busy}
             >
               {models.map(m => (
-                <option key={m} value={m}>{m.startsWith('claude-') ? `${m} (hosted, uses your API key)` : m}</option>
+                <option key={m} value={m}>{isHostedModel(m) ? `${m.replace(/^groq:/, '')} (hosted${m.startsWith('groq:') ? ' on Groq' : ''})` : m}</option>
               ))}
             </select>
           )}
-          {model.startsWith('claude-') && (
+          {isHostedModel(model) && (
             <div className="helper-text" style={{ marginTop: '8px' }}>
-              This model runs on Anthropic&apos;s servers: your code is sent to the Anthropic API and each
-              component is billed to your API key. Use it for open-source or non-sensitive code.
+              This model runs on {model.startsWith('groq:') ? "Groq's" : "Anthropic's"} servers: your code is sent to their API for
+              each component. Use it for open-source or non-sensitive code. Public demos share one rate-limited quota, so a run
+              may be slower or ask you to try again later.
             </div>
           )}
         </div>

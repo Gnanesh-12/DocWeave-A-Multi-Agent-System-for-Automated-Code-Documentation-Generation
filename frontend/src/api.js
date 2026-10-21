@@ -63,7 +63,10 @@ let socket = null
 
 export function getSocket() {
   if (!socket) {
-    socket = io('http://127.0.0.1:5000', { path: '/socket.io' })
+    // Dev (Vite on :5173) talks to Flask directly. In a production build the page is served by Flask
+    // itself, so connect to the page's own origin - that is what makes a shared public link work
+    // (a hard-coded 127.0.0.1 would point at each visitor's own computer).
+    socket = io(import.meta.env.DEV ? 'http://127.0.0.1:5000' : undefined, { path: '/socket.io' })
   }
   return socket
 }

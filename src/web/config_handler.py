@@ -34,6 +34,34 @@ CLAUDE_MODELS = [
 ]
 CLAUDE_KEY_ENV = "ANTHROPIC_API_KEY"
 
+# Groq (OpenAI-compatible, has a free tier). Offered when GROQ_API_KEY is set. Model ids can be changed
+# without code via DOCWEAVE_GROQ_MODELS (comma separated), in case Groq retires one.
+GROQ_KEY_ENV = "GROQ_API_KEY"
+GROQ_API_BASE = os.environ.get("DOCWEAVE_GROQ_API_BASE", "https://api.groq.com/openai/v1")  # override for other OpenAI-compatible hosts
+GROQ_PREFIX = "groq:"
+
+
+def groq_model_ids():
+    raw = os.environ.get("DOCWEAVE_GROQ_MODELS", "llama-3.3-70b-versatile")
+    return [m.strip() for m in raw.split(",") if m.strip()]
+
+
+def is_groq_model(model: str) -> bool:
+    return model.startswith(GROQ_PREFIX)
+
+
+def groq_available() -> bool:
+    return bool(os.environ.get(GROQ_KEY_ENV, "").strip())
+
+
+def hosted_only() -> bool:
+    """Cloud deployments have no Ollama/GPU: offer hosted models only."""
+    return os.environ.get("DOCWEAVE_HOSTED_ONLY") == "1"
+
+
+def is_hosted_model(model: str) -> bool:
+    return is_claude_model(model) or is_groq_model(model)
+
 
 def is_claude_model(model: str) -> bool:
     return model in CLAUDE_MODELS
@@ -44,22 +72,54 @@ def claude_available() -> bool:
 
 
 def installed_ollama_models():
-    """Models the UI can actually run: installed Ollama models, plus Claude when a key is set.
+    """Models the UI can actually run: installed Ollama models, plus hosted ones whose API key is set.
 
-    Falls back to the full Ollama list if the `ollama` CLI cannot be queried, so a missing CLI
-    never leaves the dropdown empty.
+    Falls back to the full Ollama list if Ollama cannot be queried, so a missing server never leaves
+    the dropdown empty. In hosted-only mode (cloud deployment) no local models are offered at all.
     """
-    import subprocess
-    models = list(OLLAMA_MODELS)
-    try:
-        out = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=15).stdout
-        installed = {line.split()[0] for line in out.splitlines()[1:] if line.strip()}
-        models = [m for m in OLLAMA_MODELS if m in installed] or models
-    except (OSError, subprocess.TimeoutExpired):
-        pass
+    models = [] if hosted_only() else list(OLLAMA_MODELS)
+    if not hosted_only():
+        # Ask Ollama over HTTP rather than running `ollama list`: the web server runs under eventlet,
+        # where a blocking subprocess call inside a request freezes every other request.
+        try:
+            import json
+            import urllib.request
+            with urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=3) as resp:
+                installed = {m["name"] for m in json.load(resp).get("models", [])}
+            models = [m for m in OLLAMA_MODELS if m in installed] or models
+        except Exception:
+            pass  # Ollama not reachable: offer the full list so the dropdown is never empty
+    if groq_available():
+        models += [GROQ_PREFIX + m for m in groq_model_ids()]
     if claude_available():
         models += CLAUDE_MODELS
     return models
+
+
+def build_groq_config(model: str):
+    """Agent config for a Groq-hosted model through the OpenAI-compatible client. The key stays a
+    placeholder resolved from the environment, so no secret is written to the temporary config file."""
+    return {
+        "llm": {
+            "type": "huggingface",  # the OpenAI-compatible client
+            "model": model[len(GROQ_PREFIX):],
+            "api_base": GROQ_API_BASE,
+            "api_key": "${%s}" % GROQ_KEY_ENV,
+            "temperature": 0.1,
+            "max_output_tokens": 1024,
+            "max_input_tokens": 6000,
+            "num_ctx": 0,          # Ollama-only field: do not send it to Groq
+            "max_retries": 8,      # free tier is rate limited; retry 429s with the server's Retry-After
+        },
+        "flow_control": {
+            "max_reader_search_attempts": 2,
+            "max_verifier_rejections": 1,
+            "status_sleep_time": 0,
+        },
+        "docstring_options": {
+            "overwrite_docstrings": False,
+        },
+    }
 
 
 def build_claude_config(model: str):
@@ -105,6 +165,12 @@ def build_ollama_config(model: str):
     Raises:
         ValueError: If the model is not one of the supported OLLAMA_MODELS
     """
+    if is_groq_model(model):
+        if not groq_available():
+            raise ValueError(f"{GROQ_KEY_ENV} is not set on the server, so Groq models are unavailable.")
+        if model[len(GROQ_PREFIX):] not in groq_model_ids():
+            raise ValueError(f"Unsupported model: {model}.")
+        return build_groq_config(model)
     if is_claude_model(model):
         if not claude_available():
             raise ValueError(
@@ -112,8 +178,8 @@ def build_ollama_config(model: str):
                 f'$env:{CLAUDE_KEY_ENV} = "<your key>", then restart the server.'
             )
         return build_claude_config(model)
-    if model not in OLLAMA_MODELS:
-        raise ValueError(f"Unsupported model: {model}. Supported models: {OLLAMA_MODELS + CLAUDE_MODELS}")
+    if hosted_only() or model not in OLLAMA_MODELS:
+        raise ValueError(f"Unsupported model: {model}.")
 
     llm = {
         "type": "huggingface",

@@ -1,0 +1,12 @@
+# Render Blueprint (optional): lets Render create the service from this repository in one step.
+# The manual steps in DEPLOY.md work without this file.
+services:
+  - type: web
+    name: docweave
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/status
+    autoDeploy: false
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false          # you type the value in Render's dashboard; it is never stored in git

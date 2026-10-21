@@ -15,8 +15,9 @@ class HuggingFaceLLM(BaseLLM):
         device: str = None,  # Kept for backward compatibility
         torch_dtype: Any = None,  # Kept for backward compatibility
         max_input_tokens: int = 10000,  # Maximum input tokens allowed
-        num_ctx: int = 8192,  # Context window to request from the server (e.g. Ollama defaults to a small window otherwise)
-        reasoning_effort: Optional[str] = None  # Ollama: "none" turns off a thinking model's reasoning (e.g. qwen3)
+        num_ctx: Optional[int] = 8192,  # Context window to request from Ollama; None/0 omits the field (hosted APIs)
+        reasoning_effort: Optional[str] = None,  # Ollama: "none" turns off a thinking model's reasoning (e.g. qwen3)
+        max_retries: int = 2  # SDK retries (with backoff, honouring Retry-After) for 429/5xx; raise for rate-limited APIs
     ):
         """Initialize HuggingFace LLM via vLLM API.
         
@@ -32,6 +33,7 @@ class HuggingFaceLLM(BaseLLM):
         self.client = OpenAI(
             api_key=api_key,
             base_url=api_base,
+            max_retries=max_retries,
         )
         self.max_input_tokens = max_input_tokens
         self.num_ctx = num_ctx
@@ -199,13 +201,19 @@ class HuggingFaceLLM(BaseLLM):
         # Call the API
         # Ollama (and other vLLM-style servers) default to a small context window unless told
         # otherwise; "options.num_ctx" is Ollama's extension for requesting a larger one.
+        # "options.num_ctx" and "reasoning_effort" are Ollama extensions; hosted OpenAI-compatible APIs
+        # (e.g. Groq) can reject unknown fields, so only send what is configured.
+        extra_body = {}
+        if self.num_ctx:
+            extra_body["options"] = {"num_ctx": self.num_ctx}
+        if self.reasoning_effort:
+            extra_body["reasoning_effort"] = self.reasoning_effort
         response = self.client.chat.completions.create(
             model=self.model_name,
             messages=formatted_messages,
             temperature=temperature,
             max_tokens=max_output_tokens,
-            extra_body={"options": {"num_ctx": self.num_ctx},
-                        **({"reasoning_effort": self.reasoning_effort} if self.reasoning_effort else {})}
+            extra_body=extra_body or None,
         )
         
         # Extract the generated text

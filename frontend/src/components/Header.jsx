@@ -22,8 +22,8 @@ export default function Header({ status, phase, model }) {
 
   let connText = 'Disconnected'
   let dotClass = 'error'
-  if (status === 'ready' || status === 'complete') { connText = 'Ollama connected'; dotClass = 'done' }
-  else if (status === 'running') { connText = 'Ollama connected'; dotClass = 'processing' }
+  if (status === 'ready' || status === 'complete') { connText = 'Connected'; dotClass = 'done' }
+  else if (status === 'running') { connText = 'Connected'; dotClass = 'processing' }
   else if (status === 'error' || status === 'cancelled') { connText = 'Disconnected'; dotClass = 'error' }
 
   return (
